@@ -1,0 +1,333 @@
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import multer from 'multer';
+import XLSX from 'xlsx';
+import { google } from 'googleapis';
+
+dotenv.config();
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+const PORT = process.env.PORT || 3000;
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, '../public')));
+
+// Configure multer for file uploads
+const upload = multer({ 
+  dest: 'uploads/',
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only Excel files are allowed.'));
+    }
+  }
+});
+
+// Store active calls
+const activeCalls = new Map();
+
+// API Routes
+app.get('/api/config', (req, res) => {
+  res.json({
+    publicKey: process.env.VAPI_PUBLIC_KEY,
+    assistantId: process.env.VAPI_ASSISTANT_ID,
+    phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID
+  });
+});
+
+// Endpoint to process uploaded Excel file
+app.post('/api/upload-contacts', upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    const workbook = XLSX.readFile(req.file.path);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(worksheet);
+
+    // Validate data structure
+    const validContacts = data.filter(row => 
+      row['Customer Name'] && row['Phone Number']
+    ).map(row => ({
+      name: row['Customer Name'],
+      phone: row['Phone Number']
+    }));
+
+    res.json({
+      success: true,
+      contacts: validContacts,
+      total: validContacts.length
+    });
+
+    // Clean up uploaded file
+    import('fs').then(fs => {
+      fs.unlinkSync(req.file.path);
+    });
+
+  } catch (error) {
+    console.error('Error processing file:', error);
+    res.status(500).json({ error: 'Error processing file' });
+  }
+});
+
+// Google Sheets API endpoint
+app.post('/api/log-to-sheets', async (req, res) => {
+  try {
+    const callData = req.body;
+    console.log('📊 Logging to Google Sheets:', callData);
+
+    // Google Sheets configuration
+    const SPREADSHEET_ID = '1z5fKe8zY3J2c6Z1xtC7mY2gMmS2PbUwjvKDcCI0lhio';
+    const RANGE = 'Sheet1!A:M'; // Columns A through M
+
+    // Initialize Google Sheets API
+    const auth = new google.auth.GoogleAuth({
+      credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS || '{}'),
+      scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+    });
+
+    const sheets = google.sheets({ version: 'v4', auth });
+
+    // Prepare row data
+    const row = [
+      callData.customerName || '',
+      callData.callTimestamp || '',
+      callData.policyUsed || '',
+      callData.rating || '',
+      callData.customerFeedback || '',
+      callData.callSummary || '',
+      callData.callback ? 'TRUE' : 'FALSE',
+      callData.callbackSchedule || '',
+      callData.callbackAttempt || 1,
+      callData.duration || 0,
+      '', // Column K reserved/blank
+      callData.transcriptText || '',
+      callData.stereoRecordingUrl || ''
+    ];
+
+    // Append to Google Sheets
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: SPREADSHEET_ID,
+      range: RANGE,
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [row],
+      },
+    });
+
+    console.log('✅ Successfully logged to Google Sheets');
+    res.json({ success: true });
+
+  } catch (error) {
+    console.error('❌ Error logging to Google Sheets:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Webhook endpoint for Vapi events
+app.post('/api/webhook/vapi', async (req, res) => {
+  const { message } = req.body;
+
+  console.log('🔔 Vapi webhook received:', JSON.stringify(message, null, 2));
+
+  try {
+    // Handle different message types
+    switch (message?.type) {
+      case 'status-update':
+        console.log(`📞 Call ${message.call?.id}: ${message.call?.status}`);
+        break;
+
+      case 'transcript':
+        console.log(`💬 ${message.role}: ${message.transcript}`);
+        break;
+
+      case 'end-of-call-report':
+        console.log('📊 End of call report received:', message);
+
+        // Extract structured outputs from the end-of-call report
+        if (message.artifact && message.artifact.structuredOutputs) {
+          console.log('✅ Structured outputs found:', message.artifact.structuredOutputs);
+
+          // Vapi may return structured outputs as an array or an object keyed by ID.
+          const flattenStructured = (outputs) => {
+            if (!outputs) return [];
+            if (Array.isArray(outputs)) return outputs;
+            if (typeof outputs === 'object') return Object.values(outputs);
+            return [];
+          };
+
+          const outputs = flattenStructured(message.artifact.structuredOutputs);
+          const getByName = (name) =>
+            outputs.find(
+              (o) => o.name?.toLowerCase() === name.toLowerCase()
+            )?.result;
+
+          // Extract the data we care about
+          const structuredData = {
+            customerName: getByName('Customer Name'),
+            policyUsed: getByName('Policy Used'),
+            rating: getByName('Feedback Score'),
+            customerFeedback: getByName('Feedback Summary'),
+            callSummary: getByName('Call Summary'),
+            callback: getByName('Callback') ?? false,
+            callbackSchedule: getByName('Callback Schedule'),
+            callbackAttempt: getByName('Callback Attempt'),
+          };
+
+          // Prepare call data for Google Sheets
+          const callTimestampRaw = message.call?.startedAt || message.timestamp || Date.now();
+          const callTimestampIso = new Date(callTimestampRaw).toISOString();
+
+          const callData = {
+            // Prefer structured output, then explicit customer name on the call object, then variables passed when starting the call
+            customerName: structuredData.customerName ||
+              message.call?.customer?.name ||
+              message.call?.variables?.customerName ||
+              '',
+            callTimestamp: callTimestampIso,
+            policyUsed: structuredData.policyUsed || '',
+            rating: structuredData.rating || '',
+            customerFeedback: structuredData.customerFeedback || '',
+            callSummary: structuredData.callSummary || message.artifact?.summary || '',
+            callback: structuredData.callback || false,
+            callbackSchedule: structuredData.callbackSchedule || '',
+            callbackAttempt: structuredData.callbackAttempt || 1,
+            duration: message.call?.endedReason === 'hangup' ?
+              Math.round((new Date(message.timestamp) - new Date(callTimestampIso)) / 1000) : 0,
+            transcriptText: message.artifact?.transcript || message.call?.transcript || '',
+            stereoRecordingUrl: message.artifact?.stereoRecordingUrl || message.call?.stereoRecordingUrl || ''
+          };
+
+          console.log('📤 Prepared call data:', callData);
+
+          // Log to Google Sheets
+          try {
+            await logToGoogleSheets(callData);
+            console.log('✅ Successfully logged to Google Sheets from webhook');
+          } catch (error) {
+            console.error('❌ Error logging to Google Sheets from webhook:', error);
+          }
+
+          // Emit to connected clients
+          io.emit('call-data-received', callData);
+        }
+        break;
+
+      case 'call-end':
+        console.log('📞 Call ended:', message);
+        break;
+
+      case 'function-call':
+        console.log('🔧 Function call:', message);
+        break;
+
+      default:
+        console.log('📨 Other message type:', message.type);
+    }
+
+    // Emit all events to connected clients via Socket.IO
+    io.emit('vapi-event', message);
+
+    res.status(200).json({ received: true });
+
+  } catch (error) {
+    console.error('❌ Error processing webhook:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Helper function to log to Google Sheets (extracted for reuse)
+async function logToGoogleSheets(callData) {
+  const SPREADSHEET_ID = '1z5fKe8zY3J2c6Z1xtC7mY2gMmS2PbUwjvKDcCI0lhio';
+  const RANGE = 'Sheet1!A:M';
+
+  const auth = new google.auth.GoogleAuth({
+    credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS || '{}'),
+    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  });
+
+  const sheets = google.sheets({ version: 'v4', auth });
+
+  const row = [
+    callData.customerName || '',
+    callData.callTimestamp || '',
+    callData.policyUsed || '',
+    callData.rating || '',
+    callData.customerFeedback || '',
+    callData.callSummary || '',
+    callData.callback ? 'TRUE' : 'FALSE',
+    callData.callbackSchedule || '',
+    callData.callbackAttempt || 1,
+    callData.duration || 0,
+    '', // Column K reserved/blank
+    callData.transcriptText || '',
+    callData.stereoRecordingUrl || ''
+  ];
+
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SPREADSHEET_ID,
+    range: RANGE,
+    valueInputOption: 'RAW',
+    requestBody: {
+      values: [row],
+    },
+  });
+}
+
+// Socket.IO connection handling
+io.on('connection', (socket) => {
+  console.log('Client connected:', socket.id);
+
+  socket.on('call-started', (data) => {
+    activeCalls.set(data.callId, {
+      customerName: data.customerName,
+      startTime: new Date(),
+      status: 'active'
+    });
+  });
+
+  socket.on('call-ended', (data) => {
+    if (activeCalls.has(data.callId)) {
+      const call = activeCalls.get(data.callId);
+      call.status = 'completed';
+      call.endTime = new Date();
+      activeCalls.set(data.callId, call);
+    }
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
+  });
+});
+
+// Serve index.html for all routes (SPA)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/index.html'));
+});
+
+httpServer.listen(PORT, () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`📱 Open http://localhost:${PORT} in your browser`);
+});
