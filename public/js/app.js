@@ -377,12 +377,15 @@ function showCallResults() {
         ` : ''}
 
         <div class="text-center pt-4">
-            <div class="inline-flex items-center gap-2 text-sm text-green-600">
+            <a href="https://docs.google.com/spreadsheets/d/1z5fKe8zY3J2c6Z1xtC7mY2gMmS2PbUwjvKDcCI0lhio/edit" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-2 text-sm text-green-600 hover:text-green-700 transition-colors">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                 </svg>
-                <span>Data saved to Google Sheets</span>
-            </div>
+                <span class="underline">Data saved to Google Sheets</span>
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                </svg>
+            </a>
         </div>
     `;
 
@@ -532,8 +535,31 @@ socket.on('disconnect', () => {
     console.log('Disconnected from server');
 });
 
+// Test function to simulate call results (for development/testing)
+async function testCallResults() {
+    try {
+        console.log('🧪 Loading test call results...');
+        const response = await fetch('/api/test-call-results');
+        const testData = await response.json();
+
+        // Update callData with test data
+        Object.assign(callData, testData);
+
+        // Show the results
+        showCallResults();
+
+        console.log('✅ Test call results loaded:', testData);
+    } catch (error) {
+        console.error('❌ Error loading test results:', error);
+    }
+}
+
+// Make test function available globally for console access
+window.testCallResults = testCallResults;
+
 // Initialize app on page load
 document.addEventListener('DOMContentLoaded', () => {
     console.log('App initialized');
+    console.log('💡 TIP: Run testCallResults() in console to see sample call results without making a real call');
     loadConfig();
 });

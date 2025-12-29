@@ -55,6 +55,27 @@ app.get('/api/config', (req, res) => {
   });
 });
 
+// Test endpoint to simulate call results (for development/testing)
+app.get('/api/test-call-results', (req, res) => {
+  const testCallData = {
+    customerName: 'John Doe (Test)',
+    callTimestamp: new Date().toISOString(),
+    policyUsed: 'Premium Support Policy',
+    rating: 4,
+    customerFeedback: 'The service was good, but I had to wait a bit longer than expected.',
+    customerSentiment: 'positive',
+    feedbackScore: 8,
+    feedbackSummary: 'Customer was satisfied with the overall service quality. Main concern was wait time, but appreciated the thorough assistance provided. Would recommend to others.',
+    callSummary: 'Customer called regarding account upgrade. Successfully processed request and explained new benefits.',
+    callback: false,
+    callbackSchedule: null,
+    callbackAttempt: 1,
+    duration: 157
+  };
+
+  res.json(testCallData);
+});
+
 // Endpoint to process uploaded Excel file
 app.post('/api/upload-contacts', upload.single('file'), (req, res) => {
   try {
