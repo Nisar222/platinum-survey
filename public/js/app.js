@@ -10,6 +10,9 @@ let callData = {
     policyUsed: '',
     rating: null,
     customerFeedback: '',
+    customerSentiment: '',
+    feedbackScore: null,
+    feedbackSummary: '',
     callSummary: '',
     callback: false,
     callbackSchedule: null,
@@ -125,6 +128,10 @@ function setupVapiEventListeners() {
                 if (params.policyUsed) callData.policyUsed = params.policyUsed;
                 if (params.rating) callData.rating = params.rating;
                 if (params.customerFeedback) callData.customerFeedback = params.customerFeedback;
+                // Match exact VAPI Structured Output field names
+                if (params['Customer Sentiment']) callData.customerSentiment = params['Customer Sentiment'];
+                if (params['Feedback Score']) callData.feedbackScore = params['Feedback Score'];
+                if (params['Feedback Summary']) callData.feedbackSummary = params['Feedback Summary'];
                 if (params.callSummary) callData.callSummary = params.callSummary;
                 if (params.callback !== undefined) callData.callback = params.callback;
                 if (params.callbackSchedule) callData.callbackSchedule = params.callbackSchedule;
@@ -254,6 +261,35 @@ function showCallResults() {
 
     console.log('📊 Displaying call results:', callData);
     
+    // Helper function to get sentiment emoji
+    const getSentimentEmoji = (sentiment) => {
+        const sentimentMap = {
+            'positive': '😊',
+            'happy': '😃',
+            'satisfied': '😊',
+            'neutral': '😐',
+            'negative': '😞',
+            'frustrated': '😠',
+            'angry': '😡',
+            'confused': '😕',
+            'disappointed': '😔'
+        };
+        return sentimentMap[sentiment?.toLowerCase()] || '😐';
+    };
+
+    // Helper function to render feedback score bar
+    const renderFeedbackScore = (score) => {
+        if (!score) return '';
+        const percentage = (score / 10) * 100;
+        const color = score >= 8 ? 'bg-green-500' : score >= 6 ? 'bg-yellow-500' : score >= 4 ? 'bg-orange-500' : 'bg-red-500';
+        return `
+            <div class="w-full bg-gray-200 rounded-full h-4 mb-2">
+                <div class="${color} h-4 rounded-full transition-all duration-500" style="width: ${percentage}%"></div>
+            </div>
+            <div class="text-2xl font-bold text-gray-800">${score}/10</div>
+        `;
+    };
+
     content.innerHTML = `
         <div class="grid grid-cols-2 gap-4 mb-4">
             <div class="p-4 bg-gradient-to-br from-cyan-50 to-blue-50 rounded-xl">
@@ -270,6 +306,32 @@ function showCallResults() {
             <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Call Timestamp</div>
             <div class="text-sm text-gray-700">${new Date(callData.callTimestamp).toLocaleString()}</div>
         </div>
+
+        ${callData.customerSentiment ? `
+        <div class="p-4 bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl mb-4">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Customer Sentiment</div>
+            <div class="flex items-center gap-3">
+                <div class="text-5xl">${getSentimentEmoji(callData.customerSentiment)}</div>
+                <div class="text-lg font-semibold text-gray-700 capitalize">${callData.customerSentiment}</div>
+            </div>
+        </div>
+        ` : ''}
+
+        ${callData.feedbackScore ? `
+        <div class="p-4 bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl mb-4">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Feedback Score</div>
+            ${renderFeedbackScore(callData.feedbackScore)}
+        </div>
+        ` : ''}
+
+        ${callData.feedbackSummary ? `
+        <div class="p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl mb-4">
+            <div class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Feedback Summary</div>
+            <div class="bg-white p-3 rounded-lg border border-gray-200">
+                <p class="text-sm text-gray-700 leading-relaxed">${callData.feedbackSummary}</p>
+            </div>
+        </div>
+        ` : ''}
 
         ${callData.policyUsed ? `
         <div class="p-4 bg-blue-50 rounded-xl mb-4">

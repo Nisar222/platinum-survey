@@ -100,7 +100,7 @@ app.post('/api/log-to-sheets', async (req, res) => {
 
     // Google Sheets configuration
     const SPREADSHEET_ID = '1z5fKe8zY3J2c6Z1xtC7mY2gMmS2PbUwjvKDcCI0lhio';
-    const RANGE = 'Sheet1!A:M'; // Columns A through M
+    const RANGE = 'Sheet1!A:P'; // Columns A through P (added 3 new columns)
 
     // Initialize Google Sheets API
     const auth = new google.auth.GoogleAuth({
@@ -117,12 +117,15 @@ app.post('/api/log-to-sheets', async (req, res) => {
       callData.policyUsed || '',
       callData.rating || '',
       callData.customerFeedback || '',
+      callData.customerSentiment || '',
+      callData.feedbackScore || '',
+      callData.feedbackSummary || '',
       callData.callSummary || '',
       callData.callback ? 'TRUE' : 'FALSE',
       callData.callbackSchedule || '',
       callData.callbackAttempt || 1,
       callData.duration || 0,
-      '', // Column K reserved/blank
+      '', // Column N reserved/blank
       callData.transcriptText || '',
       callData.stereoRecordingUrl || ''
     ];
@@ -188,8 +191,11 @@ app.post('/api/webhook/vapi', async (req, res) => {
           const structuredData = {
             customerName: getByName('Customer Name'),
             policyUsed: getByName('Policy Used'),
-            rating: getByName('Feedback Score'),
-            customerFeedback: getByName('Feedback Summary'),
+            rating: getByName('Rating'),
+            customerFeedback: getByName('Customer Feedback'),
+            customerSentiment: getByName('Customer Sentiment'),
+            feedbackScore: getByName('Feedback Score'),
+            feedbackSummary: getByName('Feedback Summary'),
             callSummary: getByName('Call Summary'),
             callback: getByName('Callback') ?? false,
             callbackSchedule: getByName('Callback Schedule'),
@@ -210,6 +216,9 @@ app.post('/api/webhook/vapi', async (req, res) => {
             policyUsed: structuredData.policyUsed || '',
             rating: structuredData.rating || '',
             customerFeedback: structuredData.customerFeedback || '',
+            customerSentiment: structuredData.customerSentiment || '',
+            feedbackScore: structuredData.feedbackScore || '',
+            feedbackSummary: structuredData.feedbackSummary || '',
             callSummary: structuredData.callSummary || message.artifact?.summary || '',
             callback: structuredData.callback || false,
             callbackSchedule: structuredData.callbackSchedule || '',
@@ -261,7 +270,7 @@ app.post('/api/webhook/vapi', async (req, res) => {
 // Helper function to log to Google Sheets (extracted for reuse)
 async function logToGoogleSheets(callData) {
   const SPREADSHEET_ID = '1z5fKe8zY3J2c6Z1xtC7mY2gMmS2PbUwjvKDcCI0lhio';
-  const RANGE = 'Sheet1!A:M';
+  const RANGE = 'Sheet1!A:P'; // Columns A through P (added 3 new columns)
 
   const auth = new google.auth.GoogleAuth({
     credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS || '{}'),
@@ -276,12 +285,15 @@ async function logToGoogleSheets(callData) {
     callData.policyUsed || '',
     callData.rating || '',
     callData.customerFeedback || '',
+    callData.customerSentiment || '',
+    callData.feedbackScore || '',
+    callData.feedbackSummary || '',
     callData.callSummary || '',
     callData.callback ? 'TRUE' : 'FALSE',
     callData.callbackSchedule || '',
     callData.callbackAttempt || 1,
     callData.duration || 0,
-    '', // Column K reserved/blank
+    '', // Column N reserved/blank
     callData.transcriptText || '',
     callData.stereoRecordingUrl || ''
   ];
