@@ -4,6 +4,7 @@ const socket = io();
 // Vapi instance
 let vapi = null;
 let currentCallId = null;
+let callType = 'web'; // 'web' or 'phone'
 let callData = {
     customerName: '',
     callTimestamp: null,
@@ -228,6 +229,52 @@ async function startWebCall(customerName) {
         console.error('❌ Error starting call:', error);
         console.error('Error stack:', error.stack);
         showError('Failed to start call: ' + (error.message || 'Unknown error'));
+        resetCallButton();
+    }
+}
+
+// Start a phone call
+async function startPhoneCall(customerName, phoneNumber) {
+    try {
+        if (!phoneNumber) {
+            throw new Error('Phone number is required for phone calls');
+        }
+
+        callData.customerName = customerName;
+        callData.callTimestamp = new Date().toISOString();
+
+        // Update UI
+        setCallButtonLoading(true);
+        updateCallStatus('connecting', `Calling ${phoneNumber}...`);
+        document.getElementById('callStatus').style.display = 'block';
+
+        console.log('Starting phone call to:', phoneNumber);
+        console.log('Customer name:', customerName);
+
+        const response = await fetch('/api/start-phone-call', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                customerName: customerName,
+                phoneNumber: phoneNumber
+            })
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            currentCallId = result.callId;
+            console.log('✅ Phone call initiated successfully with ID:', currentCallId);
+            updateCallStatus('active', `Phone call in progress to ${phoneNumber}`);
+        } else {
+            throw new Error(result.error || 'Failed to initiate phone call');
+        }
+
+    } catch (error) {
+        console.error('❌ Error starting phone call:', error);
+        showError('Failed to start phone call: ' + (error.message || 'Unknown error'));
         resetCallButton();
     }
 }
@@ -460,18 +507,72 @@ function showError(message) {
     indicator.classList.remove('animate-pulse');
 }
 
+// Toggle between web call and phone call
+function setupCallTypeToggle() {
+    const webCallBtn = document.getElementById('webCallBtn');
+    const phoneCallBtn = document.getElementById('phoneCallBtn');
+    const phoneNumberField = document.getElementById('phoneNumberField');
+    const phoneNumberInput = document.getElementById('phoneNumber');
+    const btnText = document.getElementById('btnText');
+
+    webCallBtn.addEventListener('click', () => {
+        callType = 'web';
+
+        // Update button styles
+        webCallBtn.classList.add('bg-white', 'text-gray-800', 'shadow-sm');
+        webCallBtn.classList.remove('text-gray-600', 'hover:text-gray-800');
+        phoneCallBtn.classList.remove('bg-white', 'text-gray-800', 'shadow-sm');
+        phoneCallBtn.classList.add('text-gray-600', 'hover:text-gray-800');
+
+        // Hide phone number field
+        phoneNumberField.classList.add('hidden');
+        phoneNumberInput.removeAttribute('required');
+
+        // Update button text
+        btnText.textContent = 'Start Web Call';
+    });
+
+    phoneCallBtn.addEventListener('click', () => {
+        callType = 'phone';
+
+        // Update button styles
+        phoneCallBtn.classList.add('bg-white', 'text-gray-800', 'shadow-sm');
+        phoneCallBtn.classList.remove('text-gray-600', 'hover:text-gray-800');
+        webCallBtn.classList.remove('bg-white', 'text-gray-800', 'shadow-sm');
+        webCallBtn.classList.add('text-gray-600', 'hover:text-gray-800');
+
+        // Show phone number field
+        phoneNumberField.classList.remove('hidden');
+        phoneNumberInput.setAttribute('required', 'required');
+
+        // Update button text
+        btnText.textContent = 'Start Phone Call';
+    });
+}
+
 // Form Event Handlers
 document.getElementById('singleCallForm').addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+
     const customerName = document.getElementById('customerName').value.trim();
-    
+
     if (!customerName) {
         showError('Please enter a customer name');
         return;
     }
 
-    await startWebCall(customerName);
+    if (callType === 'web') {
+        await startWebCall(customerName);
+    } else {
+        const phoneNumber = document.getElementById('phoneNumber').value.trim();
+
+        if (!phoneNumber) {
+            showError('Please enter a phone number');
+            return;
+        }
+
+        await startPhoneCall(customerName, phoneNumber);
+    }
 });
 
 // Hang Up Button Handler
@@ -561,5 +662,6 @@ window.testCallResults = testCallResults;
 document.addEventListener('DOMContentLoaded', () => {
     console.log('App initialized');
     console.log('💡 TIP: Run testCallResults() in console to see sample call results without making a real call');
+    setupCallTypeToggle();
     loadConfig();
 });

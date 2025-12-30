@@ -76,6 +76,72 @@ app.get('/api/test-call-results', (req, res) => {
   res.json(testCallData);
 });
 
+// Endpoint to initiate a phone call via VAPI
+app.post('/api/start-phone-call', async (req, res) => {
+  try {
+    const { customerName, phoneNumber } = req.body;
+
+    if (!customerName || !phoneNumber) {
+      return res.status(400).json({
+        success: false,
+        error: 'Customer name and phone number are required'
+      });
+    }
+
+    console.log('📞 Initiating phone call to:', phoneNumber);
+    console.log('👤 Customer name:', customerName);
+
+    // Validate that we have the private key
+    if (!process.env.VAPI_PRIVATE_KEY) {
+      throw new Error('VAPI_PRIVATE_KEY is not configured. Phone calls require a private key.');
+    }
+
+    // Make API call to VAPI to initiate phone call
+    const vapiResponse = await fetch('https://api.vapi.ai/call/phone', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.VAPI_PRIVATE_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        assistantId: process.env.VAPI_ASSISTANT_ID,
+        phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
+        customer: {
+          number: phoneNumber,
+          name: customerName
+        },
+        assistantOverrides: {
+          variableValues: {
+            customerName: customerName
+          }
+        }
+      })
+    });
+
+    const vapiResult = await vapiResponse.json();
+
+    if (!vapiResponse.ok) {
+      console.error('❌ VAPI API error:', vapiResult);
+      throw new Error(vapiResult.message || 'Failed to initiate call with VAPI');
+    }
+
+    console.log('✅ Phone call initiated successfully:', vapiResult);
+
+    res.json({
+      success: true,
+      callId: vapiResult.id || vapiResult.call?.id,
+      message: 'Phone call initiated successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error starting phone call:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to initiate phone call'
+    });
+  }
+});
+
 // Endpoint to process uploaded Excel file
 app.post('/api/upload-contacts', upload.single('file'), (req, res) => {
   try {
