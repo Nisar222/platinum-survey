@@ -142,6 +142,57 @@ app.post('/api/start-phone-call', async (req, res) => {
   }
 });
 
+// Endpoint to end a phone call via VAPI
+app.delete('/api/end-phone-call/:callId', async (req, res) => {
+  try {
+    const { callId } = req.params;
+
+    if (!callId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Call ID is required'
+      });
+    }
+
+    console.log('📴 Ending phone call:', callId);
+
+    // Validate that we have the private key
+    if (!process.env.VAPI_PRIVATE_KEY) {
+      throw new Error('VAPI_PRIVATE_KEY is not configured');
+    }
+
+    // Make API call to VAPI to end the phone call
+    const vapiResponse = await fetch(`https://api.vapi.ai/call/${callId}`, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${process.env.VAPI_PRIVATE_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    const vapiResult = await vapiResponse.json();
+
+    if (!vapiResponse.ok) {
+      console.error('❌ VAPI API error:', vapiResult);
+      throw new Error(vapiResult.message || 'Failed to end call with VAPI');
+    }
+
+    console.log('✅ Phone call ended successfully:', vapiResult);
+
+    res.json({
+      success: true,
+      message: 'Phone call ended successfully'
+    });
+
+  } catch (error) {
+    console.error('❌ Error ending phone call:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message || 'Failed to end phone call'
+    });
+  }
+});
+
 // Endpoint to process uploaded Excel file
 app.post('/api/upload-contacts', upload.single('file'), (req, res) => {
   try {

@@ -576,10 +576,40 @@ document.getElementById('singleCallForm').addEventListener('submit', async (e) =
 });
 
 // Hang Up Button Handler
-document.getElementById('hangUpBtn').addEventListener('click', () => {
-    if (vapi) {
-        vapi.stop();
-        console.log('Call manually ended by user');
+document.getElementById('hangUpBtn').addEventListener('click', async () => {
+    if (callType === 'web') {
+        // Web calls use the Vapi SDK
+        if (vapi) {
+            vapi.stop();
+            console.log('Web call manually ended by user');
+        }
+    } else {
+        // Phone calls use the API endpoint
+        if (currentCallId) {
+            try {
+                const response = await fetch(`/api/end-phone-call/${currentCallId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    console.log('Phone call ended successfully');
+                    updateCallStatus('completed', 'Call ended by user');
+                    resetCallButton();
+                } else {
+                    showError('Failed to end call: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error ending phone call:', error);
+                showError('Failed to end call: ' + error.message);
+            }
+        } else {
+            console.log('No active phone call to end');
+        }
     }
 });
 
