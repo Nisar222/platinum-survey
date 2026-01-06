@@ -142,53 +142,100 @@ app.post('/api/start-phone-call', async (req, res) => {
   }
 });
 
-// Endpoint to end a phone call via VAPI
+// Endpoint to end a phone call via 3CX Call Control
 app.delete('/api/end-phone-call/:callId', async (req, res) => {
   try {
-    const { callId } = req.params;
+    const { callId, phoneNumber } = req.body; // Get phone number from request body
 
-    if (!callId) {
+    if (!phoneNumber) {
       return res.status(400).json({
         success: false,
-        error: 'Call ID is required'
+        error: 'Phone number is required to disconnect call'
       });
     }
 
-    console.log('📴 Ending phone call:', callId);
+    console.log('📴 Ending phone call via 3CX for:', phoneNumber);
 
-    // Validate that we have the private key
-    if (!process.env.VAPI_PRIVATE_KEY) {
-      throw new Error('VAPI_PRIVATE_KEY is not configured');
+    // Validate 3CX credentials
+    if (!process.env.CX_API_URL || !process.env.CX_USERNAME || !process.env.CX_PASSWORD) {
+      throw new Error('3CX credentials not configured. Please set CX_API_URL, CX_USERNAME, and CX_PASSWORD');
     }
 
-    // Make API call to VAPI to end the phone call
-    const vapiResponse = await fetch(`https://api.vapi.ai/call/${callId}`, {
-      method: 'DELETE',
+    // Use 3CX API to disconnect the call
+    // First, authenticate with 3CX
+    const authResponse = await fetch(`${process.env.CX_API_URL}/api/login`, {
+      method: 'POST',
       headers: {
-        'Authorization': `Bearer ${process.env.VAPI_PRIVATE_KEY}`,
         'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        username: process.env.CX_USERNAME,
+        password: process.env.CX_PASSWORD
+      })
+    });
+
+    if (!authResponse.ok) {
+      throw new Error('Failed to authenticate with 3CX');
+    }
+
+    const authData = await authResponse.json();
+    const sessionId = authData.SessionId;
+
+    // Get active calls to find the call ID
+    const callsResponse = await fetch(`${process.env.CX_API_URL}/api/ActiveCalls`, {
+      method: 'GET',
+      headers: {
+        'Cookie': `session=${sessionId}`
       }
     });
 
-    const vapiResult = await vapiResponse.json();
-
-    if (!vapiResponse.ok) {
-      console.error('❌ VAPI API error:', vapiResult);
-      throw new Error(vapiResult.message || 'Failed to end call with VAPI');
+    if (!callsResponse.ok) {
+      throw new Error('Failed to get active calls from 3CX');
     }
 
-    console.log('✅ Phone call ended successfully:', vapiResult);
+    const activeCalls = await callsResponse.json();
+
+    // Find the call with matching phone number
+    const targetCall = activeCalls.find(call =>
+      call.OtherPartyNumber === phoneNumber ||
+      call.OtherPartyNumber.includes(phoneNumber.replace(/\D/g, ''))
+    );
+
+    if (!targetCall) {
+      return res.status(404).json({
+        success: false,
+        error: 'Call not found in active calls'
+      });
+    }
+
+    // Disconnect the call
+    const disconnectResponse = await fetch(`${process.env.CX_API_URL}/api/DisconnectCall`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': `session=${sessionId}`
+      },
+      body: JSON.stringify({
+        CallId: targetCall.Id
+      })
+    });
+
+    if (!disconnectResponse.ok) {
+      throw new Error('Failed to disconnect call via 3CX');
+    }
+
+    console.log('✅ Phone call disconnected successfully via 3CX');
 
     res.json({
       success: true,
-      message: 'Phone call ended successfully'
+      message: 'Phone call disconnected successfully via 3CX'
     });
 
   } catch (error) {
     console.error('❌ Error ending phone call:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to end phone call'
+      error: error.message || 'Failed to disconnect phone call'
     });
   }
 });
@@ -238,7 +285,7 @@ app.post('/api/log-to-sheets', async (req, res) => {
 
     // Google Sheets configuration
     const SPREADSHEET_ID = '1z5fKe8zY3J2c6Z1xtC7mY2gMmS2PbUwjvKDcCI0lhio';
-    const RANGE = 'Sheet1!A:P'; // Columns A through P (added 3 new columns)
+    const RANGE = 'Sheet1!A1:M'; // Columns A through M (13 columns to match sheet structure)
 
     // Initialize Google Sheets API
     const auth = new google.auth.GoogleAuth({
@@ -248,31 +295,29 @@ app.post('/api/log-to-sheets', async (req, res) => {
 
     const sheets = google.sheets({ version: 'v4', auth });
 
-    // Prepare row data
+    // Prepare row data to match Google Sheet structure (13 columns)
     const row = [
-      callData.customerName || '',
-      callData.callTimestamp || '',
-      callData.policyUsed || '',
-      callData.rating || '',
-      callData.customerFeedback || '',
-      callData.customerSentiment || '',
-      callData.feedbackScore || '',
-      callData.feedbackSummary || '',
-      callData.callSummary || '',
-      callData.callback ? 'TRUE' : 'FALSE',
-      callData.callbackSchedule || '',
-      callData.callbackAttempt || 1,
-      callData.duration || 0,
-      '', // Column N reserved/blank
-      callData.transcriptText || '',
-      callData.stereoRecordingUrl || ''
+      callData.customerName || '',           // A: Customer Name
+      callData.callTimestamp || '',          // B: Call Timestamp
+      callData.policyUsed || '',             // C: Policy Used
+      callData.rating || '',                 // D: Rating
+      callData.customerFeedback || '',       // E: Customer Feedback
+      callData.customerSentiment || '',      // F: Feedback Sentiment
+      callData.callSummary || '',            // G: Call Summary
+      callData.callback ? 'TRUE' : 'FALSE',  // H: Callback
+      callData.callbackSchedule || '',       // I: Callback Schedule
+      callData.callbackAttempt || 1,         // J: Callback Attempt
+      callData.duration || 0,                // K: Call Disposition (using duration)
+      callData.transcriptText || '',         // L: Call Transcript
+      callData.stereoRecordingUrl || ''      // M: Call Recording
     ];
 
-    // Append to Google Sheets
+    // Append to Google Sheets - explicitly specify to start from column A
     await sheets.spreadsheets.values.append({
       spreadsheetId: SPREADSHEET_ID,
       range: RANGE,
       valueInputOption: 'RAW',
+      insertDataOption: 'INSERT_ROWS', // This ensures new rows are inserted, not appended to existing structure
       requestBody: {
         values: [row],
       },
@@ -408,7 +453,7 @@ app.post('/api/webhook/vapi', async (req, res) => {
 // Helper function to log to Google Sheets (extracted for reuse)
 async function logToGoogleSheets(callData) {
   const SPREADSHEET_ID = '1z5fKe8zY3J2c6Z1xtC7mY2gMmS2PbUwjvKDcCI0lhio';
-  const RANGE = 'Sheet1!A:P'; // Columns A through P (added 3 new columns)
+  const RANGE = 'Sheet1!A1:M'; // Columns A through M (13 columns to match sheet structure)
 
   const auth = new google.auth.GoogleAuth({
     credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS || '{}'),
@@ -417,29 +462,28 @@ async function logToGoogleSheets(callData) {
 
   const sheets = google.sheets({ version: 'v4', auth });
 
+  // Prepare row data to match Google Sheet structure (13 columns)
   const row = [
-    callData.customerName || '',
-    callData.callTimestamp || '',
-    callData.policyUsed || '',
-    callData.rating || '',
-    callData.customerFeedback || '',
-    callData.customerSentiment || '',
-    callData.feedbackScore || '',
-    callData.feedbackSummary || '',
-    callData.callSummary || '',
-    callData.callback ? 'TRUE' : 'FALSE',
-    callData.callbackSchedule || '',
-    callData.callbackAttempt || 1,
-    callData.duration || 0,
-    '', // Column N reserved/blank
-    callData.transcriptText || '',
-    callData.stereoRecordingUrl || ''
+    callData.customerName || '',           // A: Customer Name
+    callData.callTimestamp || '',          // B: Call Timestamp
+    callData.policyUsed || '',             // C: Policy Used
+    callData.rating || '',                 // D: Rating
+    callData.customerFeedback || '',       // E: Customer Feedback
+    callData.customerSentiment || '',      // F: Feedback Sentiment
+    callData.callSummary || '',            // G: Call Summary
+    callData.callback ? 'TRUE' : 'FALSE',  // H: Callback
+    callData.callbackSchedule || '',       // I: Callback Schedule
+    callData.callbackAttempt || 1,         // J: Callback Attempt
+    callData.duration || 0,                // K: Call Disposition (using duration)
+    callData.transcriptText || '',         // L: Call Transcript
+    callData.stereoRecordingUrl || ''      // M: Call Recording
   ];
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
     range: RANGE,
     valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS', // This ensures new rows are inserted, not appended to existing structure
     requestBody: {
       values: [row],
     },

@@ -4,6 +4,7 @@ const socket = io();
 // Vapi instance
 let vapi = null;
 let currentCallId = null;
+let currentPhoneNumber = null; // Store phone number for 3CX disconnect
 let callType = 'web'; // 'web' or 'phone'
 let callData = {
     customerName: '',
@@ -236,6 +237,9 @@ async function startWebCall(customerName) {
 // Start a phone call
 async function startPhoneCall(customerName, phoneNumber) {
     try {
+        // Store phone number globally for later use (e.g., ending call)
+        currentPhoneNumber = phoneNumber;
+
         if (!phoneNumber) {
             throw new Error('Phone number is required for phone calls');
         }
@@ -584,22 +588,27 @@ document.getElementById('hangUpBtn').addEventListener('click', async () => {
             console.log('Web call manually ended by user');
         }
     } else {
-        // Phone calls use the API endpoint
-        if (currentCallId) {
+        // Phone calls use 3CX call control
+        if (currentCallId && currentPhoneNumber) {
             try {
                 const response = await fetch(`/api/end-phone-call/${currentCallId}`, {
                     method: 'DELETE',
                     headers: {
                         'Content-Type': 'application/json'
-                    }
+                    },
+                    body: JSON.stringify({
+                        callId: currentCallId,
+                        phoneNumber: currentPhoneNumber
+                    })
                 });
 
                 const result = await response.json();
 
                 if (result.success) {
-                    console.log('Phone call ended successfully');
+                    console.log('Phone call disconnected successfully via 3CX');
                     updateCallStatus('completed', 'Call ended by user');
                     resetCallButton();
+                    currentPhoneNumber = null; // Clear phone number
                 } else {
                     showError('Failed to end call: ' + result.error);
                 }
