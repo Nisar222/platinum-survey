@@ -374,12 +374,12 @@ app.post('/api/webhook/vapi', async (req, res) => {
           const structuredData = {
             customerName: getByName('Customer Name'),
             policyUsed: getByName('Policy Used'),
-            rating: getByName('Rating'),
+            rating: getByName('Feedback Score'), // Use Feedback Score as Rating
             customerFeedback: getByName('Customer Feedback'),
             customerSentiment: getByName('Customer Sentiment'),
-            feedbackScore: getByName('Feedback Score'),
             feedbackSummary: getByName('Feedback Summary'),
             callSummary: getByName('Call Summary'),
+            callDisposition: getByName('Call Disposition'),
             callback: getByName('Callback') ?? false,
             callbackSchedule: getByName('Callback Schedule'),
             callbackAttempt: getByName('Callback Attempt'),
@@ -397,17 +397,16 @@ app.post('/api/webhook/vapi', async (req, res) => {
               '',
             callTimestamp: callTimestampIso,
             policyUsed: structuredData.policyUsed || '',
-            rating: structuredData.rating || '',
+            rating: structuredData.rating || '', // This is now Feedback Score (Column D)
             customerFeedback: structuredData.customerFeedback || '',
             customerSentiment: structuredData.customerSentiment || '',
-            feedbackScore: structuredData.feedbackScore || '',
             feedbackSummary: structuredData.feedbackSummary || '',
             callSummary: structuredData.callSummary || message.artifact?.summary || '',
             callback: structuredData.callback || false,
             callbackSchedule: structuredData.callbackSchedule || '',
             callbackAttempt: structuredData.callbackAttempt || 1,
-            duration: message.call?.endedReason === 'hangup' ?
-              Math.round((new Date(message.timestamp) - new Date(callTimestampIso)) / 1000) : 0,
+            duration: structuredData.callDisposition || (message.call?.endedReason === 'hangup' ?
+              Math.round((new Date(message.timestamp) - new Date(callTimestampIso)) / 1000) : 0),
             transcriptText: message.artifact?.transcript || message.call?.transcript || '',
             stereoRecordingUrl: message.artifact?.stereoRecordingUrl || message.call?.stereoRecordingUrl || ''
           };
