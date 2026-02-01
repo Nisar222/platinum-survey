@@ -284,7 +284,7 @@ app.post('/api/log-to-sheets', async (req, res) => {
     console.log('📊 Logging to Google Sheets:', callData);
 
     // Google Sheets configuration
-    const SPREADSHEET_ID = '1z5fKe8zY3J2c6Z1xtC7mY2gMmS2PbUwjvKDcCI0lhio';
+    const SPREADSHEET_ID = process.env.GOOGLE_SPREADSHEET_ID || '1z5fKe8zY3J2c6Z1xtC7mY2gMmS2PbUwjvKDcCI0lhio';
     const RANGE = 'Sheet1!A1:M'; // Columns A through M (13 columns to match sheet structure)
 
     // Initialize Google Sheets API
@@ -451,7 +451,7 @@ app.post('/api/webhook/vapi', async (req, res) => {
 
 // Helper function to log to Google Sheets (extracted for reuse)
 async function logToGoogleSheets(callData) {
-  const SPREADSHEET_ID = '1z5fKe8zY3J2c6Z1xtC7mY2gMmS2PbUwjvKDcCI0lhio';
+  const SPREADSHEET_ID = process.env.GOOGLE_SPREADSHEET_ID || '1z5fKe8zY3J2c6Z1xtC7mY2gMmS2PbUwjvKDcCI0lhio';
   const RANGE = 'Sheet1!A1:M'; // Columns A through M (13 columns to match sheet structure)
 
   const auth = new google.auth.GoogleAuth({
