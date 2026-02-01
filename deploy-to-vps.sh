@@ -3,10 +3,11 @@
 # Colors for output
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}🚀 Starting deployment to VPS...${NC}\n"
+echo -e "${BLUE}🚀 Starting deployment to PRODUCTION...${NC}\n"
 
 # Step 1: Push to GitHub
 echo -e "${BLUE}📤 Pushing to GitHub...${NC}"
