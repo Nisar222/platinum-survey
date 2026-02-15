@@ -1,0 +1,11 @@
+{
+  "maxConcurrentCalls": 5,
+  "callDelayMinSeconds": 30,
+  "callDelayMaxSeconds": 60,
+  "maxAttemptsPerContact": 3,
+  "businessHoursStart": 9,
+  "businessHoursEnd": 17,
+  "timezone": "United Arab Emirates/Dubai",
+  "noAnswerRetryDays": 1,
+  "callbackRetryHours": 4
+}

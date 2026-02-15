@@ -8,6 +8,11 @@ import { Server } from 'socket.io';
 import multer from 'multer';
 import XLSX from 'xlsx';
 import { google } from 'googleapis';
+import { readFileSync, writeFileSync } from 'fs';
+import { initializeDatabase, recoverStuckCalls } from './db/database.js';
+import CampaignProcessor from './lib/campaign-processor.js';
+import RetryScheduler from './lib/retry-scheduler.js';
+import campaignRoutes from './routes/campaigns.js';
 
 dotenv.config();
 
@@ -352,6 +357,11 @@ app.post('/api/webhook/vapi', async (req, res) => {
       case 'end-of-call-report':
         console.log('📊 End of call report received:', message);
 
+        // Check if this is a batch call (has metadata with contactId and batchId)
+        const metadata = message.call?.metadata || {};
+        const contactId = metadata.contactId;
+        const batchId = metadata.batchId;
+
         // Extract structured outputs from the end-of-call report
         if (message.artifact && message.artifact.structuredOutputs) {
           console.log('✅ Structured outputs found:', message.artifact.structuredOutputs);
@@ -408,21 +418,34 @@ app.post('/api/webhook/vapi', async (req, res) => {
             duration: structuredData.callDisposition || (message.call?.endedReason === 'hangup' ?
               Math.round((new Date(message.timestamp) - new Date(callTimestampIso)) / 1000) : 0),
             transcriptText: message.artifact?.transcript || message.call?.transcript || '',
-            stereoRecordingUrl: message.artifact?.stereoRecordingUrl || message.call?.stereoRecordingUrl || ''
+            stereoRecordingUrl: message.artifact?.stereoRecordingUrl || message.call?.stereoRecordingUrl || '',
+            vapiCallId: message.call?.id || '',
+            endedReason: message.call?.endedReason || ''
           };
 
           console.log('📤 Prepared call data:', callData);
 
-          // Log to Google Sheets
-          try {
-            await logToGoogleSheets(callData);
-            console.log('✅ Successfully logged to Google Sheets from webhook');
-          } catch (error) {
-            console.error('❌ Error logging to Google Sheets from webhook:', error);
-          }
+          // Route to campaign processor or single call handler
+          const campaignIdMeta = metadata.campaignId || batchId;
+          if (contactId && campaignIdMeta) {
+            // CAMPAIGN CALL - Route to campaign processor
+            console.log(`📦 Campaign call detected: Contact ${contactId}, Campaign ${campaignIdMeta}`);
+            await batchProcessor.handleCallComplete(contactId, callData);
+          } else {
+            // SINGLE CALL - Existing logic
+            console.log('📱 Single call - logging to Google Sheets');
 
-          // Emit to connected clients
-          io.emit('call-data-received', callData);
+            // Log to Google Sheets
+            try {
+              await logToGoogleSheets(callData);
+              console.log('✅ Successfully logged to Google Sheets from webhook');
+            } catch (error) {
+              console.error('❌ Error logging to Google Sheets from webhook:', error);
+            }
+
+            // Emit to connected clients
+            io.emit('call-data-received', callData);
+          }
         }
         break;
 
@@ -452,7 +475,7 @@ app.post('/api/webhook/vapi', async (req, res) => {
 // Helper function to log to Google Sheets (extracted for reuse)
 async function logToGoogleSheets(callData) {
   const SPREADSHEET_ID = process.env.GOOGLE_SPREADSHEET_ID || '1z5fKe8zY3J2c6Z1xtC7mY2gMmS2PbUwjvKDcCI0lhio';
-  const RANGE = 'Sheet1!A1:M'; // Columns A through M (13 columns to match sheet structure)
+  const RANGE = 'Sheet1!A1:R'; // Columns A through R (18 columns)
 
   const auth = new google.auth.GoogleAuth({
     credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS || '{}'),
@@ -461,28 +484,33 @@ async function logToGoogleSheets(callData) {
 
   const sheets = google.sheets({ version: 'v4', auth });
 
-  // Prepare row data to match Google Sheet structure (13 columns)
+  // Prepare row data to match Google Sheet structure (18 columns)
   const row = [
-    callData.customerName || '',           // A: Customer Name
-    callData.callTimestamp || '',          // B: Call Timestamp
-    callData.policyUsed || '',             // C: Policy Used
-    callData.rating || '',                 // D: Rating
-    callData.customerFeedback || '',       // E: Customer Feedback
-    callData.customerSentiment || '',      // F: Feedback Sentiment
-    callData.callSummary || '',            // G: Call Summary
-    callData.callback ? 'TRUE' : 'FALSE',  // H: Callback
-    callData.callbackSchedule || '',       // I: Callback Schedule
-    callData.callbackAttempt || 1,         // J: Callback Attempt
-    callData.duration || 0,                // K: Call Disposition (using duration)
-    callData.transcriptText || '',         // L: Call Transcript
-    callData.stereoRecordingUrl || ''      // M: Call Recording
+    callData.customerName || '',                        // A: Customer Name
+    callData.callTimestamp || '',                       // B: Call Timestamp
+    callData.policyUsed || '',                          // C: Policy Used
+    callData.rating || '',                              // D: Rating
+    callData.customerFeedback || '',                    // E: Customer Feedback
+    callData.customerSentiment || '',                   // F: Feedback Sentiment
+    callData.callSummary || '',                         // G: Call Summary
+    callData.callback ? 'TRUE' : 'FALSE',               // H: Callback
+    callData.callbackSchedule || '',                    // I: Callback Schedule
+    callData.callbackAttempt || 1,                      // J: Callback Attempt
+    callData.callDisposition || callData.duration || 0, // K: Call Disposition
+    callData.transcriptText || '',                      // L: Call Transcript
+    callData.stereoRecordingUrl || '',                  // M: Call Recording
+    callData.campaignId || callData.batchId || '',      // N: Campaign ID
+    callData.campaignName || callData.batchName || '',  // O: Campaign Name
+    callData.callStatus || '',                          // P: Call Status
+    callData.callDisposition || '',                     // Q: Call Disposition (text)
+    callData.endedReason || ''                          // R: Ended Reason
   ];
 
   await sheets.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
     range: RANGE,
     valueInputOption: 'RAW',
-    insertDataOption: 'INSERT_ROWS', // This ensures new rows are inserted, not appended to existing structure
+    insertDataOption: 'INSERT_ROWS',
     requestBody: {
       values: [row],
     },
@@ -515,6 +543,119 @@ io.on('connection', (socket) => {
   });
 });
 
+// Apply settings from config file on startup
+try {
+  const startupSettings = JSON.parse(readFileSync(new URL('../config/settings.json', import.meta.url).pathname, 'utf8'));
+  if (startupSettings.maxConcurrentCalls) process.env.MAX_CONCURRENT_VAPI_CALLS = String(startupSettings.maxConcurrentCalls);
+  if (startupSettings.callDelayMinSeconds) process.env.BATCH_CALL_DELAY_MIN = String(startupSettings.callDelayMinSeconds * 1000);
+  if (startupSettings.callDelayMaxSeconds) process.env.BATCH_CALL_DELAY_MAX = String(startupSettings.callDelayMaxSeconds * 1000);
+} catch { /* settings file optional */ }
+
+// Initialize database and campaign processor
+const db = initializeDatabase();
+
+// Recover stuck calls on startup
+await recoverStuckCalls();
+
+// Create campaign processor instance
+const batchProcessor = new CampaignProcessor(io, logToGoogleSheets);
+
+// Make campaign processor available to routes
+app.locals.batchProcessor = batchProcessor;
+
+// Start retry scheduler (checks every 5 minutes for due retries during business hours)
+const retryScheduler = new RetryScheduler(batchProcessor);
+retryScheduler.start();
+app.locals.retryScheduler = retryScheduler;
+
+// Auto-resume running campaigns after server restart
+const runningCampaigns = (() => {
+  try {
+    return db.prepare(`SELECT id, name FROM campaigns WHERE status = 'running'`).all();
+  } catch {
+    // Fallback to batches table if campaigns table not yet migrated
+    return db.prepare(`SELECT id, name FROM batches WHERE status = 'running'`).all();
+  }
+})();
+
+if (runningCampaigns.length > 0) {
+  console.log(`🔄 Auto-resuming ${runningCampaigns.length} running campaign(s) after restart...`);
+
+  setTimeout(() => {
+    runningCampaigns.forEach(campaign => {
+      console.log(`▶️  Resuming campaign ${campaign.id}: ${campaign.name}`);
+      batchProcessor.resume(campaign.id).catch(err => {
+        console.error(`❌ Failed to auto-resume campaign ${campaign.id}:`, err);
+      });
+    });
+  }, 5000);
+}
+
+// Mount campaign routes (also at /api/batches for backwards compatibility)
+app.use('/api/campaigns', campaignRoutes);
+app.use('/api/batches', campaignRoutes);
+
+// Settings endpoints
+const settingsPath = new URL('../config/settings.json', import.meta.url).pathname;
+
+function loadSettings() {
+  try {
+    return JSON.parse(readFileSync(settingsPath, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+app.get('/api/settings', (req, res) => {
+  res.json(loadSettings());
+});
+
+app.post('/api/settings', (req, res) => {
+  try {
+    const current = loadSettings();
+    const updated = { ...current, ...req.body };
+    writeFileSync(settingsPath, JSON.stringify(updated, null, 2));
+    // Apply runtime-changeable settings immediately
+    if (updated.maxConcurrentCalls) {
+      process.env.MAX_CONCURRENT_VAPI_CALLS = String(updated.maxConcurrentCalls);
+    }
+    if (updated.callDelayMinSeconds) {
+      process.env.BATCH_CALL_DELAY_MIN = String(updated.callDelayMinSeconds * 1000);
+    }
+    if (updated.callDelayMaxSeconds) {
+      process.env.BATCH_CALL_DELAY_MAX = String(updated.callDelayMaxSeconds * 1000);
+    }
+    res.json({ success: true, settings: updated });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// VAPI concurrency status endpoint
+app.get('/api/vapi/concurrency-status', (req, res) => {
+  try {
+    const activeCallsResult = db.prepare(`
+      SELECT COUNT(*) as count FROM contacts WHERE status = 'calling'
+    `).get();
+
+    const maxConcurrent = parseInt(process.env.MAX_CONCURRENT_VAPI_CALLS || '5');
+    const activeCallCount = activeCallsResult.count;
+    const availableSlots = Math.max(0, maxConcurrent - activeCallCount);
+    const utilizationPercent = Math.round((activeCallCount / maxConcurrent) * 100);
+
+    res.json({
+      activeCallCount,
+      maxCalls: maxConcurrent,
+      availableSlots,
+      utilizationPercent,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('❌ Error fetching VAPI concurrency status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Serve index.html for all routes (SPA)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
@@ -523,4 +664,5 @@ app.get('*', (req, res) => {
 httpServer.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📱 Open http://localhost:${PORT} in your browser`);
+  console.log(`📦 Campaign calling system initialized`);
 });
