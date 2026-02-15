@@ -10,3 +10,11 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 *.log
+
+# Database files (local only - VPS has its own)
+*.db
+*.db-shm
+*.db-wal
+
+# Archive files
+*.zip
