@@ -142,6 +142,13 @@
                             </div>
                         </div>
 
+                        <div>
+                            <label class="block text-sm font-semibold text-gray-600 mb-1">Schedule <span class="text-gray-400 font-normal">(optional)</span></label>
+                            <select id="campaignScheduleId" class="w-full px-3 py-2.5 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 outline-none transition-all text-sm bg-white">
+                                <option value="">No schedule (manual start)</option>
+                            </select>
+                        </div>
+
                         <button type="submit" id="uploadBatchBtn" class="w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white font-semibold py-3 px-4 rounded-xl hover:shadow-lg transition-all flex items-center justify-center gap-2 text-sm">
                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
                             <span id="uploadBtnText">Create Campaign</span>
@@ -149,6 +156,56 @@
                         </button>
                     </form>
                     <div id="uploadStatus" class="hidden mt-4"></div>
+                </div>
+
+                <!-- Weekly Schedules -->
+                <div class="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-1.5 h-7 bg-gradient-to-b from-blue-500 to-cyan-500 rounded-full"></div>
+                            <h2 class="text-lg font-bold text-gray-800">Weekly Schedules</h2>
+                        </div>
+                        <button id="toggleScheduleFormBtn" class="px-3 py-1.5 bg-blue-500 text-white text-xs font-semibold rounded-lg hover:bg-blue-600 transition-all">+ New</button>
+                    </div>
+
+                    <!-- New Schedule Form (hidden) -->
+                    <div id="scheduleForm" class="hidden mb-4 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                        <div class="mb-3">
+                            <input type="text" id="scheduleName" placeholder="Schedule name (e.g., Weekly Outreach)" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 outline-none text-sm">
+                        </div>
+                        <div class="mb-3">
+                            <label class="block text-xs font-semibold text-gray-600 mb-2">Days</label>
+                            <div class="flex gap-1.5 flex-wrap">
+                                <label class="schedule-day-btn"><input type="checkbox" value="mon" class="hidden schedule-day-check"><span class="px-3 py-1.5 text-xs font-semibold rounded-lg border-2 border-gray-200 cursor-pointer hover:border-blue-400 transition-all select-none inline-block">Mon</span></label>
+                                <label class="schedule-day-btn"><input type="checkbox" value="tue" class="hidden schedule-day-check"><span class="px-3 py-1.5 text-xs font-semibold rounded-lg border-2 border-gray-200 cursor-pointer hover:border-blue-400 transition-all select-none inline-block">Tue</span></label>
+                                <label class="schedule-day-btn"><input type="checkbox" value="wed" class="hidden schedule-day-check"><span class="px-3 py-1.5 text-xs font-semibold rounded-lg border-2 border-gray-200 cursor-pointer hover:border-blue-400 transition-all select-none inline-block">Wed</span></label>
+                                <label class="schedule-day-btn"><input type="checkbox" value="thu" class="hidden schedule-day-check"><span class="px-3 py-1.5 text-xs font-semibold rounded-lg border-2 border-gray-200 cursor-pointer hover:border-blue-400 transition-all select-none inline-block">Thu</span></label>
+                                <label class="schedule-day-btn"><input type="checkbox" value="fri" class="hidden schedule-day-check"><span class="px-3 py-1.5 text-xs font-semibold rounded-lg border-2 border-gray-200 cursor-pointer hover:border-blue-400 transition-all select-none inline-block">Fri</span></label>
+                                <label class="schedule-day-btn"><input type="checkbox" value="sat" class="hidden schedule-day-check"><span class="px-3 py-1.5 text-xs font-semibold rounded-lg border-2 border-gray-200 cursor-pointer hover:border-blue-400 transition-all select-none inline-block">Sat</span></label>
+                                <label class="schedule-day-btn"><input type="checkbox" value="sun" class="hidden schedule-day-check"><span class="px-3 py-1.5 text-xs font-semibold rounded-lg border-2 border-gray-200 cursor-pointer hover:border-blue-400 transition-all select-none inline-block">Sun</span></label>
+                            </div>
+                        </div>
+                        <div class="flex gap-3 items-center mb-3">
+                            <div class="flex-1">
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">Start</label>
+                                <input type="time" id="scheduleStartTime" value="09:00" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 outline-none text-sm">
+                            </div>
+                            <span class="text-gray-400 mt-5">to</span>
+                            <div class="flex-1">
+                                <label class="block text-xs font-semibold text-gray-600 mb-1">End</label>
+                                <input type="time" id="scheduleEndTime" value="17:00" class="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 outline-none text-sm">
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="saveScheduleBtn" class="flex-1 bg-blue-500 text-white text-xs font-semibold py-2 rounded-lg hover:bg-blue-600 transition-all">Save Schedule</button>
+                            <button id="cancelScheduleBtn" class="px-4 py-2 text-xs font-semibold text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition-all">Cancel</button>
+                        </div>
+                    </div>
+
+                    <!-- Schedule List -->
+                    <div id="scheduleList" class="space-y-2">
+                        <p class="text-xs text-gray-400 text-center py-2">No schedules yet</p>
+                    </div>
                 </div>
 
                 <!-- Single Call -->

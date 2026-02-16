@@ -98,6 +98,8 @@ function initializeCampaignManager() {
       const formData = new FormData();
       formData.append('file', file);
       if (campaignName) formData.append('batchName', campaignName);
+      const scheduleId = document.getElementById('campaignScheduleId')?.value;
+      if (scheduleId) formData.append('scheduleId', scheduleId);
 
       const response = await fetch('/api/campaigns/upload', {
         method: 'POST',
@@ -982,4 +984,155 @@ function initializeCampaignManager() {
   setInterval(updateDashboardStatistics, 15000);
   // Refresh callback queue badge every 60 seconds
   setInterval(loadCallbackQueue, 60000);
+
+  // ========================================================
+  // Weekly Schedules
+  // ========================================================
+
+  const DAY_LABELS = { sun: 'Sun', mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat' };
+
+  // Toggle day button styling
+  document.querySelectorAll('.schedule-day-check').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const span = cb.nextElementSibling;
+      if (cb.checked) {
+        span.classList.add('bg-blue-500', 'text-white', 'border-blue-500');
+        span.classList.remove('border-gray-200');
+      } else {
+        span.classList.remove('bg-blue-500', 'text-white', 'border-blue-500');
+        span.classList.add('border-gray-200');
+      }
+    });
+  });
+
+  // Toggle new schedule form
+  document.getElementById('toggleScheduleFormBtn').addEventListener('click', () => {
+    document.getElementById('scheduleForm').classList.toggle('hidden');
+  });
+  document.getElementById('cancelScheduleBtn').addEventListener('click', () => {
+    document.getElementById('scheduleForm').classList.add('hidden');
+  });
+
+  // Save schedule
+  document.getElementById('saveScheduleBtn').addEventListener('click', async () => {
+    const name = document.getElementById('scheduleName').value.trim();
+    const days = Array.from(document.querySelectorAll('.schedule-day-check:checked')).map(cb => cb.value);
+    const startTime = document.getElementById('scheduleStartTime').value;
+    const endTime = document.getElementById('scheduleEndTime').value;
+
+    if (!name) return alert('Please enter a schedule name');
+    if (days.length === 0) return alert('Please select at least one day');
+    if (!startTime || !endTime) return alert('Please set start and end times');
+    if (startTime >= endTime) return alert('Start time must be before end time');
+
+    try {
+      const res = await fetch('/api/schedules', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, days, startTime, endTime })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      document.getElementById('scheduleForm').classList.add('hidden');
+      document.getElementById('scheduleName').value = '';
+      document.querySelectorAll('.schedule-day-check').forEach(cb => {
+        cb.checked = false;
+        cb.nextElementSibling.classList.remove('bg-blue-500', 'text-white', 'border-blue-500');
+        cb.nextElementSibling.classList.add('border-gray-200');
+      });
+      loadSchedules();
+    } catch (err) {
+      alert('Error creating schedule: ' + err.message);
+    }
+  });
+
+  // Load and render schedules
+  async function loadSchedules() {
+    try {
+      const res = await fetch('/api/schedules');
+      const data = await res.json();
+      const list = document.getElementById('scheduleList');
+      const dropdown = document.getElementById('campaignScheduleId');
+
+      // Update dropdown
+      if (dropdown) {
+        const currentVal = dropdown.value;
+        dropdown.innerHTML = '<option value="">No schedule (manual start)</option>';
+        data.schedules.filter(s => s.active).forEach(s => {
+          dropdown.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+        });
+        dropdown.value = currentVal;
+      }
+
+      // Render schedule cards
+      if (!data.schedules || data.schedules.length === 0) {
+        list.innerHTML = '<p class="text-xs text-gray-400 text-center py-2">No schedules yet</p>';
+        return;
+      }
+
+      list.innerHTML = data.schedules.map(s => {
+        const days = JSON.parse(s.days);
+        const dayPills = Object.entries(DAY_LABELS).map(([key, label]) => {
+          const active = days.includes(key);
+          return `<span class="px-1.5 py-0.5 text-[10px] font-bold rounded ${active ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-400'}">${label}</span>`;
+        }).join('');
+
+        const statusBadge = s.active
+          ? '<span class="px-2 py-0.5 text-[10px] font-bold bg-green-100 text-green-700 rounded-full">Active</span>'
+          : '<span class="px-2 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-500 rounded-full">Stopped</span>';
+
+        const pendingBadge = s.pending_campaigns > 0
+          ? `<span class="px-2 py-0.5 text-[10px] font-bold bg-yellow-100 text-yellow-700 rounded-full">${s.pending_campaigns} pending</span>`
+          : '';
+
+        const toggleBtn = s.active
+          ? `<button onclick="toggleSchedule(${s.id}, 'stop')" class="text-[10px] font-semibold text-yellow-600 hover:text-yellow-800">Pause</button>`
+          : `<button onclick="toggleSchedule(${s.id}, 'activate')" class="text-[10px] font-semibold text-green-600 hover:text-green-800">Activate</button>`;
+
+        const deleteBtn = `<button onclick="deleteSchedule(${s.id})" class="text-[10px] font-semibold text-red-500 hover:text-red-700">Delete</button>`;
+
+        return `
+          <div class="p-3 bg-gray-50 rounded-xl border border-gray-100">
+            <div class="flex justify-between items-start mb-2">
+              <div class="font-semibold text-sm text-gray-800">${s.name}</div>
+              <div class="flex gap-1.5 items-center">${statusBadge} ${pendingBadge}</div>
+            </div>
+            <div class="flex gap-0.5 mb-2">${dayPills}</div>
+            <div class="flex justify-between items-center">
+              <span class="text-xs text-gray-500">${s.start_time} - ${s.end_time}</span>
+              <div class="flex gap-3">${toggleBtn} ${deleteBtn}</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    } catch (err) {
+      console.error('Error loading schedules:', err);
+    }
+  }
+
+  // Global functions for inline onclick handlers
+  window.toggleSchedule = async function(id, action) {
+    try {
+      const res = await fetch(`/api/schedules/${id}/${action}`, { method: 'POST' });
+      if (!res.ok) throw new Error((await res.json()).error);
+      loadSchedules();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  };
+
+  window.deleteSchedule = async function(id) {
+    if (!confirm('Delete this schedule?')) return;
+    try {
+      const res = await fetch(`/api/schedules/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error((await res.json()).error);
+      loadSchedules();
+    } catch (err) {
+      alert('Error: ' + err.message);
+    }
+  };
+
+  // Load schedules on startup
+  loadSchedules();
 }

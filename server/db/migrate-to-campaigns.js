@@ -122,7 +122,8 @@ async function migrate() {
   const campaignCols = getColumnNames('campaigns');
   const extraCampaignCols = {
     avg_call_duration_seconds: 'INTEGER',
-    last_contact_completed_at: 'DATETIME'
+    last_contact_completed_at: 'DATETIME',
+    schedule_id: 'INTEGER REFERENCES schedules(id)'
   };
   for (const [col, type] of Object.entries(extraCampaignCols)) {
     if (!campaignCols.includes(col)) {

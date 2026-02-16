@@ -103,3 +103,20 @@ CREATE INDEX IF NOT EXISTS idx_call_logs_contact_id ON call_logs(contact_id);
 CREATE INDEX IF NOT EXISTS idx_call_logs_batch_id ON call_logs(batch_id);
 CREATE INDEX IF NOT EXISTS idx_call_logs_vapi_call_id ON call_logs(vapi_call_id);
 CREATE INDEX IF NOT EXISTS idx_call_logs_created_at ON call_logs(created_at);
+
+-- ============================================================================
+-- Table: schedules (weekly recurring campaign schedules)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS schedules (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  days TEXT NOT NULL,                          -- JSON array: ["mon","wed","fri"]
+  start_time TEXT NOT NULL DEFAULT '09:00',    -- HH:MM 24h format
+  end_time TEXT NOT NULL DEFAULT '17:00',      -- HH:MM 24h format
+  timezone TEXT NOT NULL DEFAULT 'Asia/Dubai',
+  active INTEGER NOT NULL DEFAULT 1,           -- 1=active, 0=stopped
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_schedules_active ON schedules(active);

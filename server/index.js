@@ -12,7 +12,9 @@ import { readFileSync, writeFileSync } from 'fs';
 import { initializeDatabase, recoverStuckCalls } from './db/database.js';
 import CampaignProcessor from './lib/campaign-processor.js';
 import RetryScheduler from './lib/retry-scheduler.js';
+import CampaignScheduler from './lib/campaign-scheduler.js';
 import campaignRoutes from './routes/campaigns.js';
+import scheduleRoutes from './routes/schedules.js';
 
 dotenv.config();
 
@@ -608,6 +610,10 @@ const retryScheduler = new RetryScheduler(batchProcessor);
 retryScheduler.start();
 app.locals.retryScheduler = retryScheduler;
 
+const campaignScheduler = new CampaignScheduler(batchProcessor);
+campaignScheduler.start();
+app.locals.campaignScheduler = campaignScheduler;
+
 // Auto-resume running campaigns after server restart
 const runningCampaigns = (() => {
   try {
@@ -631,8 +637,9 @@ if (runningCampaigns.length > 0) {
   }, 5000);
 }
 
-// Mount campaign routes (also at /api/batches for backwards compatibility)
+// Mount routes
 app.use('/api/campaigns', campaignRoutes);
+app.use('/api/schedules', scheduleRoutes);
 app.use('/api/batches', campaignRoutes);
 
 // Settings endpoints

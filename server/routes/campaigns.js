@@ -45,7 +45,7 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const { batchName, campaignName } = req.body;
+    const { batchName, campaignName, scheduleId } = req.body;
     const db = getDatabase();
 
     // Parse Excel file
@@ -147,12 +147,13 @@ router.post('/upload', upload.single('file'), async (req, res) => {
     }
 
     // Create campaign in transaction
+    const parsedScheduleId = scheduleId ? parseInt(scheduleId) : null;
     const insertCampaign = db.transaction((name, contactsList) => {
       // Insert into campaigns table (primary)
       const campaignResult = db.prepare(`
-        INSERT INTO campaigns (name, total_contacts, status)
-        VALUES (?, ?, 'pending')
-      `).run(name, contactsList.length);
+        INSERT INTO campaigns (name, total_contacts, status, schedule_id)
+        VALUES (?, ?, 'pending', ?)
+      `).run(name, contactsList.length, parsedScheduleId);
 
       const campaignId = campaignResult.lastInsertRowid;
 
