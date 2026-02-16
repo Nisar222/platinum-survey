@@ -533,6 +533,18 @@ class CampaignProcessor {
    * Determine call disposition from call data
    */
   determineDisposition(callData) {
+    // Check VAPI structured output Call Disposition first (most reliable signal)
+    const vapiDisposition = (callData.callDisposition || '').toString().toLowerCase().trim();
+    if (vapiDisposition === 'completed') {
+      return { status: 'completed', disposition: 'completed', needsRetry: false };
+    }
+    if (vapiDisposition === 'callback' || vapiDisposition === 'callback_requested') {
+      return { status: 'callback_requested', disposition: 'callback_requested', needsRetry: true, retryType: 'callback_requested' };
+    }
+    if (vapiDisposition === 'no_answer' || vapiDisposition === 'no answer') {
+      return { status: 'no_answer', disposition: 'no_answer', needsRetry: true, retryType: 'no_answer' };
+    }
+
     if (callData.rating || callData.customerFeedback) {
       return { status: 'completed', disposition: 'completed', needsRetry: false };
     }
@@ -541,7 +553,7 @@ class CampaignProcessor {
       return { status: 'callback_requested', disposition: 'callback_requested', needsRetry: true, retryType: 'callback_requested' };
     }
 
-    if (callData.transcriptText && callData.duration > 0) {
+    if (callData.transcriptText && Number(callData.duration) > 0) {
       return { status: 'completed', disposition: 'completed', needsRetry: false };
     }
 

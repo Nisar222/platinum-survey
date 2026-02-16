@@ -415,8 +415,10 @@ app.post('/api/webhook/vapi', async (req, res) => {
             callback: structuredData.callback || false,
             callbackSchedule: structuredData.callbackSchedule || '',
             callbackAttempt: structuredData.callbackAttempt || 1,
-            duration: structuredData.callDisposition || (message.call?.endedReason === 'hangup' ?
-              Math.round((new Date(message.timestamp) - new Date(callTimestampIso)) / 1000) : 0),
+            duration: message.call?.startedAt && message.call?.endedAt
+              ? Math.round((new Date(message.call.endedAt) - new Date(message.call.startedAt)) / 1000)
+              : (message.call?.duration || 0),
+            callDisposition: structuredData.callDisposition || '',
             transcriptText: message.artifact?.transcript || message.call?.transcript || '',
             stereoRecordingUrl: message.artifact?.stereoRecordingUrl || message.call?.stereoRecordingUrl || '',
             vapiCallId: message.call?.id || '',

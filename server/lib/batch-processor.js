@@ -542,42 +542,35 @@ class BatchCallProcessor {
    * @returns {Object} Disposition info
    */
   determineDisposition(callData) {
+    // Check VAPI structured output Call Disposition first (most reliable signal)
+    const vapiDisposition = (callData.callDisposition || '').toString().toLowerCase().trim();
+    if (vapiDisposition === 'completed') {
+      return { status: 'completed', disposition: 'completed', needsRetry: false };
+    }
+    if (vapiDisposition === 'callback' || vapiDisposition === 'callback_requested') {
+      return { status: 'callback_requested', disposition: 'callback_requested', needsRetry: true, retryType: 'callback_requested' };
+    }
+    if (vapiDisposition === 'no_answer' || vapiDisposition === 'no answer') {
+      return { status: 'no_answer', disposition: 'no_answer', needsRetry: true, retryType: 'no_answer' };
+    }
+
     // Check if customer completed survey
     if (callData.rating || callData.customerFeedback) {
-      return {
-        status: 'completed',
-        disposition: 'completed',
-        needsRetry: false
-      };
+      return { status: 'completed', disposition: 'completed', needsRetry: false };
     }
 
     // Check if callback requested
     if (callData.callback) {
-      return {
-        status: 'callback_requested',
-        disposition: 'callback_requested',
-        needsRetry: true,
-        retryType: 'callback_requested'
-      };
+      return { status: 'callback_requested', disposition: 'callback_requested', needsRetry: true, retryType: 'callback_requested' };
     }
 
     // Check if call connected (has transcript and duration > 0)
-    if (callData.transcriptText && callData.duration > 0) {
-      // Call connected but no survey data - treat as completed for now
-      return {
-        status: 'completed',
-        disposition: 'completed',
-        needsRetry: false
-      };
+    if (callData.transcriptText && Number(callData.duration) > 0) {
+      return { status: 'completed', disposition: 'completed', needsRetry: false };
     }
 
     // No answer
-    return {
-      status: 'no_answer',
-      disposition: 'no_answer',
-      needsRetry: true,
-      retryType: 'no_answer'
-    };
+    return { status: 'no_answer', disposition: 'no_answer', needsRetry: true, retryType: 'no_answer' };
   }
 
   /**
