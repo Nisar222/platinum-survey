@@ -374,15 +374,17 @@ const handleCallWebhook = async (req, res) => {
       case 'end-of-call-report':
         console.log('📊 End of call report received');
         console.log('  📞 Call ID:', message.call?.id);
-        console.log('  📋 Metadata:', JSON.stringify(message.call?.metadata));
+        console.log('  📋 Metadata (call):', JSON.stringify(message.call?.metadata));
+        console.log('  📋 Metadata (top):', JSON.stringify(message.metadata));
+        console.log('  📋 message.call keys:', message.call ? Object.keys(message.call).join(', ') : 'NO CALL OBJECT');
         console.log('  ⏱️  Duration:', message.call?.startedAt, '->', message.call?.endedAt);
         console.log('  🔚 Ended reason:', message.call?.endedReason);
         console.log('  📝 Has artifact:', !!message.artifact);
         console.log('  📊 Has structured outputs:', !!(message.artifact?.structuredOutputs));
         console.log('  📃 Has transcript:', !!(message.artifact?.transcript));
 
-        // Check if this is a batch call (has metadata with contactId and batchId)
-        const metadata = message.call?.metadata || {};
+        // Check for metadata in multiple locations (VAPI may place it differently)
+        const metadata = message.call?.metadata || message.metadata || {};
         const contactId = metadata.contactId;
         const batchId = metadata.batchId;
         console.log('  🔗 Contact ID:', contactId, '| Campaign/Batch ID:', metadata.campaignId || batchId);
@@ -442,12 +444,14 @@ const handleCallWebhook = async (req, res) => {
             callbackAttempt: structuredData.callbackAttempt || 1,
             duration: message.call?.startedAt && message.call?.endedAt
               ? Math.round((new Date(message.call.endedAt) - new Date(message.call.startedAt)) / 1000)
-              : (message.call?.duration || 0),
+              : (message.startedAt && message.endedAt
+                ? Math.round((new Date(message.endedAt) - new Date(message.startedAt)) / 1000)
+                : (message.artifact?.duration || message.call?.duration || message.duration || 0)),
             callDisposition: structuredData.callDisposition || '',
-            transcriptText: message.artifact?.transcript || message.call?.transcript || '',
+            transcriptText: message.artifact?.transcript || message.call?.transcript || message.transcript || '',
             stereoRecordingUrl: message.artifact?.stereoRecordingUrl || message.call?.stereoRecordingUrl || '',
-            vapiCallId: message.call?.id || '',
-            endedReason: message.call?.endedReason || ''
+            vapiCallId: message.call?.id || message.callId || '',
+            endedReason: message.call?.endedReason || message.endedReason || ''
           };
 
           console.log('📤 Prepared call data:', callData);
