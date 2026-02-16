@@ -565,10 +565,10 @@ function initializeCampaignManager() {
     if (window.queueRefreshInterval) clearInterval(window.queueRefreshInterval);
     window.queueRefreshInterval = setInterval(() => {
       updateQueuePanel(campaignId);
-      updateVAPIConcurrencyStatus();
+      updateCallConcurrencyStatus();
     }, 10000);
 
-    updateVAPIConcurrencyStatus();
+    updateCallConcurrencyStatus();
 
     document.getElementById('closeQueueBtn').addEventListener('click', () => {
       queueSection.classList.add('hidden');
@@ -672,9 +672,9 @@ function initializeCampaignManager() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }
 
-  async function updateVAPIConcurrencyStatus() {
+  async function updateCallConcurrencyStatus() {
     try {
-      const response = await fetch('/api/vapi/concurrency-status');
+      const response = await fetch('/api/calls/concurrency-status');
       const data = await response.json();
 
       const statusText = document.getElementById('concurrencyStatusText');
@@ -692,7 +692,7 @@ function initializeCampaignManager() {
         barsContainer.appendChild(bar);
       }
     } catch (error) {
-      console.error('Error updating VAPI concurrency status:', error);
+      console.error('Error updating call concurrency status:', error);
     }
   }
 

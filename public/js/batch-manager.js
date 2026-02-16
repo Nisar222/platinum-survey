@@ -412,11 +412,11 @@ function initializeBatchManager() {
     }
     window.queueRefreshInterval = setInterval(() => {
       updateQueuePanel(batchId);
-      updateVAPIConcurrencyStatus();
+      updateCallConcurrencyStatus();
     }, 10000);
 
     // Update concurrency status immediately
-    updateVAPIConcurrencyStatus();
+    updateCallConcurrencyStatus();
 
     // Add close button listener
     document.getElementById('closeQueueBtn').addEventListener('click', () => {
@@ -550,10 +550,10 @@ function initializeBatchManager() {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }
 
-  // Update VAPI concurrency status
-  async function updateVAPIConcurrencyStatus() {
+  // Update call concurrency status
+  async function updateCallConcurrencyStatus() {
     try {
-      const response = await fetch('/api/vapi/concurrency-status');
+      const response = await fetch('/api/calls/concurrency-status');
       const data = await response.json();
 
       const statusText = document.getElementById('concurrencyStatusText');
@@ -576,7 +576,7 @@ function initializeBatchManager() {
         barsContainer.appendChild(bar);
       }
     } catch (error) {
-      console.error('Error updating VAPI concurrency status:', error);
+      console.error('Error updating call concurrency status:', error);
     }
   }
 

@@ -328,8 +328,7 @@ router.get('/reports/calls', (req, res) => {
         cl.callback_schedule,
         cl.ended_reason,
         cl.recording_url,
-        cl.attempt_number,
-        cl.vapi_call_id
+        cl.attempt_number
       FROM call_logs cl
       JOIN contacts co ON cl.contact_id = co.id
       LEFT JOIN campaigns camp ON cl.campaign_id = camp.id
@@ -351,7 +350,7 @@ router.get('/reports/calls', (req, res) => {
         'Status', 'Disposition', 'Duration (s)', 'Rating',
         'Feedback', 'Sentiment', 'Call Summary',
         'Callback Requested', 'Callback Schedule', 'Ended Reason',
-        'Recording URL', 'Attempt #', 'VAPI Call ID'
+        'Recording URL', 'Attempt #'
       ];
 
       const escape = (v) => {
@@ -368,7 +367,7 @@ router.get('/reports/calls', (req, res) => {
         c.call_status, c.call_disposition, c.duration_seconds, c.rating,
         c.customer_feedback, c.customer_sentiment, c.call_summary,
         c.callback_requested ? 'Yes' : 'No', c.callback_schedule,
-        c.ended_reason, c.recording_url, c.attempt_number, c.vapi_call_id
+        c.ended_reason, c.recording_url, c.attempt_number
       ].map(escape).join(','));
 
       const csv = [headers.join(','), ...rows].join('\n');

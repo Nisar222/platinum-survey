@@ -337,11 +337,28 @@ app.post('/api/log-to-sheets', async (req, res) => {
   }
 });
 
-// Webhook endpoint for Vapi events
-app.post('/api/webhook/vapi', async (req, res) => {
+// Webhook health check (GET) - for browser testing
+app.get('/api/webhook/calls', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'Call webhook endpoint is active',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Webhook endpoint for call platform events
+const handleCallWebhook = async (req, res) => {
   const { message } = req.body;
 
-  console.log('🔔 Vapi webhook received:', JSON.stringify(message, null, 2));
+  console.log('🔔 Call webhook received:', {
+    type: message?.type,
+    callId: message?.call?.id,
+    callStatus: message?.call?.status,
+    endedReason: message?.call?.endedReason,
+    hasArtifact: !!message?.artifact,
+    hasStructuredOutputs: !!(message?.artifact?.structuredOutputs),
+    timestamp: new Date().toISOString()
+  });
 
   try {
     // Handle different message types
@@ -355,16 +372,24 @@ app.post('/api/webhook/vapi', async (req, res) => {
         break;
 
       case 'end-of-call-report':
-        console.log('📊 End of call report received:', message);
+        console.log('📊 End of call report received');
+        console.log('  📞 Call ID:', message.call?.id);
+        console.log('  📋 Metadata:', JSON.stringify(message.call?.metadata));
+        console.log('  ⏱️  Duration:', message.call?.startedAt, '->', message.call?.endedAt);
+        console.log('  🔚 Ended reason:', message.call?.endedReason);
+        console.log('  📝 Has artifact:', !!message.artifact);
+        console.log('  📊 Has structured outputs:', !!(message.artifact?.structuredOutputs));
+        console.log('  📃 Has transcript:', !!(message.artifact?.transcript));
 
         // Check if this is a batch call (has metadata with contactId and batchId)
         const metadata = message.call?.metadata || {};
         const contactId = metadata.contactId;
         const batchId = metadata.batchId;
+        console.log('  🔗 Contact ID:', contactId, '| Campaign/Batch ID:', metadata.campaignId || batchId);
 
         // Extract structured outputs from the end-of-call report
         if (message.artifact && message.artifact.structuredOutputs) {
-          console.log('✅ Structured outputs found:', message.artifact.structuredOutputs);
+          console.log('✅ Structured outputs found:', JSON.stringify(message.artifact.structuredOutputs, null, 2));
 
           // Vapi may return structured outputs as an array or an object keyed by ID.
           const flattenStructured = (outputs) => {
@@ -464,7 +489,7 @@ app.post('/api/webhook/vapi', async (req, res) => {
     }
 
     // Emit all events to connected clients via Socket.IO
-    io.emit('vapi-event', message);
+    io.emit('call-event', message);
 
     res.status(200).json({ received: true });
 
@@ -472,7 +497,10 @@ app.post('/api/webhook/vapi', async (req, res) => {
     console.error('❌ Error processing webhook:', error);
     res.status(500).json({ error: error.message });
   }
-});
+};
+// Register webhook on both routes (legacy + clean URL)
+app.post('/api/webhook/vapi', handleCallWebhook);
+app.post('/api/webhook/calls', handleCallWebhook);
 
 // Helper function to log to Google Sheets (extracted for reuse)
 async function logToGoogleSheets(callData) {
@@ -633,14 +661,14 @@ app.post('/api/settings', (req, res) => {
   }
 });
 
-// VAPI concurrency status endpoint
-app.get('/api/vapi/concurrency-status', (req, res) => {
+// Call concurrency status endpoint
+app.get('/api/calls/concurrency-status', (req, res) => {
   try {
     const activeCallsResult = db.prepare(`
       SELECT COUNT(*) as count FROM contacts WHERE status = 'calling'
     `).get();
 
-    const maxConcurrent = parseInt(process.env.MAX_CONCURRENT_VAPI_CALLS || '5');
+    const maxConcurrent = parseInt(process.env.MAX_CONCURRENT_CALLS || process.env.MAX_CONCURRENT_VAPI_CALLS || '5');
     const activeCallCount = activeCallsResult.count;
     const availableSlots = Math.max(0, maxConcurrent - activeCallCount);
     const utilizationPercent = Math.round((activeCallCount / maxConcurrent) * 100);
@@ -653,7 +681,7 @@ app.get('/api/vapi/concurrency-status', (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('❌ Error fetching VAPI concurrency status:', error);
+    console.error('❌ Error fetching concurrency status:', error);
     res.status(500).json({ error: error.message });
   }
 });

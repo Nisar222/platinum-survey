@@ -662,8 +662,8 @@ if (bulkUploadForm) {
 }
 
 // Socket.IO event listeners
-socket.on('vapi-event', (event) => {
-    console.log('Vapi event from server:', event);
+socket.on('call-event', (event) => {
+    console.log('Call event from server:', event);
     // Handle events from webhook if needed
 });
 
