@@ -251,7 +251,10 @@ class BatchCallProcessor {
           },
           assistantOverrides: {
             variableValues: {
-              customerName: contact.customer_name
+              customerName: contact.customer_name,
+              _contactId: String(contact.id),
+              _campaignId: String(contact.batch_id),
+              _attemptNumber: String(contact.attempt_count + 1)
             }
           },
           metadata: {

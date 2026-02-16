@@ -383,11 +383,17 @@ const handleCallWebhook = async (req, res) => {
         console.log('  📊 Has structured outputs:', !!(message.artifact?.structuredOutputs));
         console.log('  📃 Has transcript:', !!(message.artifact?.transcript));
 
-        // Check for metadata in multiple locations (VAPI may place it differently)
+        // Check for campaign identifiers - prefer variableValues (reliable), fallback to metadata
+        const vars = message.call?.assistantOverrides?.variableValues
+          || message.assistantOverrides?.variableValues
+          || message.call?.variableValues
+          || {};
         const metadata = message.call?.metadata || message.metadata || {};
-        const contactId = metadata.contactId;
+        const contactId = vars._contactId ? parseInt(vars._contactId) : metadata.contactId;
+        const campaignIdFromVars = vars._campaignId ? parseInt(vars._campaignId) : null;
         const batchId = metadata.batchId;
-        console.log('  🔗 Contact ID:', contactId, '| Campaign/Batch ID:', metadata.campaignId || batchId);
+        console.log('  🔗 variableValues:', JSON.stringify(vars));
+        console.log('  🔗 Contact ID:', contactId, '| Campaign/Batch ID:', campaignIdFromVars || metadata.campaignId || batchId);
 
         // Extract structured outputs from the end-of-call report
         if (message.artifact && message.artifact.structuredOutputs) {
@@ -457,10 +463,10 @@ const handleCallWebhook = async (req, res) => {
           console.log('📤 Prepared call data:', callData);
 
           // Route to campaign processor or single call handler
-          const campaignIdMeta = metadata.campaignId || batchId;
-          if (contactId && campaignIdMeta) {
+          const campaignIdResolved = campaignIdFromVars || metadata.campaignId || batchId;
+          if (contactId && campaignIdResolved) {
             // CAMPAIGN CALL - Route to campaign processor
-            console.log(`📦 Campaign call detected: Contact ${contactId}, Campaign ${campaignIdMeta}`);
+            console.log(`📦 Campaign call detected: Contact ${contactId}, Campaign ${campaignIdResolved}`);
             await batchProcessor.handleCallComplete(contactId, callData);
           } else {
             // SINGLE CALL - Existing logic
