@@ -506,7 +506,7 @@ function initializeCampaignManager() {
     try {
       const [campaignsRes, queueRes] = await Promise.all([
         fetch('/api/campaigns'),
-        fetch('/api/queue/status')
+        fetch('/api/campaigns/queue/status')
       ]);
 
       const campaignData = await campaignsRes.json();
