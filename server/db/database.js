@@ -14,6 +14,49 @@ const __dirname = path.dirname(__filename);
 let db = null;
 
 /**
+ * Safely add missing columns to existing tables (idempotent)
+ * Run on every startup so deployments never leave columns missing
+ */
+function runMigrations(db) {
+  const getColumns = (table) =>
+    db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
+
+  const addColumnIfMissing = (table, column, type) => {
+    try {
+      const cols = getColumns(table);
+      if (!cols.includes(column)) {
+        db.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`).run();
+        console.log(`✅ Migration: added ${table}.${column}`);
+      }
+    } catch (e) {
+      // Ignore "duplicate column" errors — already exists
+      if (!e.message.includes('duplicate column')) {
+        console.warn(`⚠️  Migration warning for ${table}.${column}:`, e.message);
+      }
+    }
+  };
+
+  // campaigns table
+  addColumnIfMissing('campaigns', 'schedule_id', 'INTEGER REFERENCES schedules(id)');
+  addColumnIfMissing('campaigns', 'avg_call_duration_seconds', 'INTEGER');
+  addColumnIfMissing('campaigns', 'last_contact_completed_at', 'DATETIME');
+
+  // contacts table
+  addColumnIfMissing('contacts', 'campaign_id', 'INTEGER');
+  addColumnIfMissing('contacts', 'call_started_at', 'DATETIME');
+  addColumnIfMissing('contacts', 'call_ended_at', 'DATETIME');
+  addColumnIfMissing('contacts', 'call_duration_seconds', 'INTEGER');
+  addColumnIfMissing('contacts', 'polling_status', 'TEXT');
+
+  // call_logs table
+  addColumnIfMissing('call_logs', 'campaign_id', 'INTEGER');
+  addColumnIfMissing('call_logs', 'transcript_text', 'TEXT');
+  addColumnIfMissing('call_logs', 'ended_reason', 'TEXT');
+  addColumnIfMissing('call_logs', 'feedback_summary', 'TEXT');
+  addColumnIfMissing('call_logs', 'call_summary', 'TEXT');
+}
+
+/**
  * Initialize and return SQLite database connection
  * @returns {Database} SQLite database instance
  */
@@ -46,6 +89,9 @@ export function initializeDatabase() {
     console.error('❌ Error initializing database schema:', error);
     throw error;
   }
+
+  // Run safe column migrations (idempotent — safe to run on every startup)
+  runMigrations(db);
 
   return db;
 }
