@@ -62,7 +62,7 @@ class RetryScheduler {
           AND co.attempt_count < co.max_attempts
           AND co.next_retry_at IS NOT NULL
           AND datetime(co.next_retry_at) <= datetime('now')
-          AND c.status IN ('pending', 'paused', 'completed')
+          AND c.status NOT IN ('cancelled', 'archived')
       `).all();
 
       if (campaignsWithDueRetries.length === 0) {
@@ -125,6 +125,7 @@ class RetryScheduler {
       JOIN contacts co ON c.id = co.campaign_id
       WHERE co.status IN ('no_answer', 'callback_requested')
         AND co.attempt_count < co.max_attempts
+        AND c.status NOT IN ('cancelled', 'archived')
       GROUP BY c.id, c.name, c.status
       ORDER BY MIN(co.next_retry_at) ASC
     `).all();
