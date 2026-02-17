@@ -35,11 +35,9 @@ ssh -i ${SSH_KEY} ${VPS_USER}@${VPS_HOST} << 'ENDSSH'
   cd /home/ubuntu/projects/platinum-survey/platinum-survey
 
   echo "📥 Pulling latest code from GitHub..."
-  # Remove DB files from git tracking (they're in .gitignore but may still be tracked)
-  git rm --cached batches.db batches.db-shm batches.db-wal 2>/dev/null || true
-  # Reset any tracked changes to these files so pull doesn't abort
-  git checkout -- batches.db batches.db-shm batches.db-wal 2>/dev/null || true
-  git pull origin main
+  # Force reset to remote — preserves .env and DB files (untracked)
+  git fetch origin main
+  git reset --hard origin/main
 
   if [ $? -ne 0 ]; then
     echo "❌ Failed to pull from GitHub"

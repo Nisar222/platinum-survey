@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS campaigns (
   last_contact_completed_at DATETIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
   started_at DATETIME,
-  completed_at DATETIME
+  completed_at DATETIME,
+  schedule_id INTEGER REFERENCES schedules(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_campaigns_status ON campaigns(status);
