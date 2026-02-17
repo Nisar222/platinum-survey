@@ -445,10 +445,7 @@ class CampaignProcessor {
             return;
           }
 
-          db.prepare(`
-            UPDATE contacts SET polling_status = 'poll_completed' WHERE id = ?
-          `).run(contactId);
-
+          // Do NOT set poll_completed here — let handleCallComplete's atomic claim be the sole gate
           await this.handleCallComplete(contactId, {
             vapiCallId,
             endedReason: callData.endedReason,
@@ -490,7 +487,7 @@ class CampaignProcessor {
       // Atomic claim: only one of (webhook, poller) can proceed — whichever sets 'processing' first wins
       const claim = db.prepare(`
         UPDATE contacts SET polling_status = 'processing'
-        WHERE id = ? AND polling_status NOT IN ('processing', 'webhook_received')
+        WHERE id = ? AND polling_status NOT IN ('processing', 'webhook_received', 'poll_completed')
       `).run(contactId);
 
       if (claim.changes === 0) {
