@@ -438,6 +438,13 @@ class CampaignProcessor {
           clearInterval(intervalId);
           this.pollingIntervals.delete(contactId);
 
+          // Re-check AFTER the async VAPI fetch — webhook may have arrived while we were fetching
+          const fresh = db.prepare('SELECT polling_status FROM contacts WHERE id = ?').get(contactId);
+          if (fresh && (fresh.polling_status === 'webhook_received' || fresh.polling_status === 'processing')) {
+            console.log(`⏭️  Poller: webhook already handled contact ${contactId} — skipping`);
+            return;
+          }
+
           db.prepare(`
             UPDATE contacts SET polling_status = 'poll_completed' WHERE id = ?
           `).run(contactId);
