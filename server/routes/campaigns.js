@@ -579,7 +579,8 @@ router.get('/callbacks/pending', (req, res) => {
       FROM contacts c
       JOIN campaigns camp ON c.campaign_id = camp.id
       WHERE c.status IN ('no_answer', 'callback_requested')
-      AND c.next_retry_at IS NOT NULL
+        AND c.next_retry_at IS NOT NULL
+        AND camp.status NOT IN ('cancelled', 'archived')
       ORDER BY c.next_retry_at ASC
       LIMIT 100
     `).all();
