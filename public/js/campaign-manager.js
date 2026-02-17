@@ -591,6 +591,11 @@ function initializeCampaignManager() {
           ? new Date(cb.next_retry_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
           : 'ASAP';
 
+        const lastCallTime = cb.last_call_at
+          ? new Date(cb.last_call_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+          : '—';
+        const isCallback = cb.status === 'callback_requested';
+
         card.className = `p-3 rounded-xl border ${isDue ? 'bg-yellow-50 border-yellow-300' : 'bg-gray-50 border-gray-200'}`;
         card.innerHTML = `
           <div class="flex justify-between items-start">
@@ -598,11 +603,12 @@ function initializeCampaignManager() {
               <div class="text-sm font-semibold text-gray-800">${cb.customer_name}</div>
               <div class="text-xs text-gray-500">${cb.phone_number}</div>
               <div class="text-xs text-gray-400 mt-0.5">${cb.campaign_name || ''}</div>
+              <div class="text-xs text-gray-400 mt-1">Called: ${lastCallTime}</div>
             </div>
             <div class="text-right">
-              <div class="text-xs font-semibold ${isDue ? 'text-yellow-700' : 'text-gray-500'}">${isDue ? '⚡ Due Now' : retryTime}</div>
+              <div class="text-xs font-semibold ${isDue ? 'text-yellow-700' : 'text-gray-600'}">${isDue ? '⚡ Due Now' : '🕐 ' + retryTime}</div>
               <div class="text-xs text-gray-400 mt-0.5">Attempt ${cb.attempt_count}/${cb.max_attempts}</div>
-              <div class="text-xs mt-0.5 ${cb.status === 'callback_requested' ? 'text-blue-600' : 'text-gray-400'}">${cb.status === 'callback_requested' ? '📞 Callback' : '🔄 No Answer'}</div>
+              <div class="text-xs mt-0.5 ${isCallback ? 'text-blue-600' : 'text-gray-400'}">${isCallback ? '📞 Callback Requested' : '🔄 No Answer'}</div>
             </div>
           </div>
         `;

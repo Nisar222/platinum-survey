@@ -480,6 +480,17 @@ class CampaignProcessor {
     const db = getDatabase();
 
     try {
+      // Atomic claim: only one of (webhook, poller) can proceed — whichever sets 'processing' first wins
+      const claim = db.prepare(`
+        UPDATE contacts SET polling_status = 'processing'
+        WHERE id = ? AND polling_status NOT IN ('processing', 'webhook_received')
+      `).run(contactId);
+
+      if (claim.changes === 0) {
+        console.log(`⏭️  Contact ${contactId} already being processed — skipping duplicate`);
+        return;
+      }
+
       const contact = db.prepare('SELECT * FROM contacts WHERE id = ?').get(contactId);
       if (!contact) {
         console.error(`❌ Contact ${contactId} not found`);
