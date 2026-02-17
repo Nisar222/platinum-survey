@@ -421,6 +421,7 @@ function initializeCampaignManager() {
             Export
           </button>
           <button class="action-unarchive px-3 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs font-semibold rounded-lg transition-all">Restore</button>
+          <button class="action-delete px-3 py-2 bg-red-100 hover:bg-red-200 text-red-600 text-xs font-semibold rounded-lg transition-all" title="Permanently delete this campaign">🗑</button>
         `;
       case 'completed':
       case 'cancelled':
@@ -430,6 +431,7 @@ function initializeCampaignManager() {
             Export
           </button>
           <button class="action-archive px-3 py-2 bg-gray-200 hover:bg-gray-300 text-gray-600 text-xs font-semibold rounded-lg transition-all" title="Archive this campaign">📦</button>
+          <button class="action-delete px-3 py-2 bg-red-100 hover:bg-red-200 text-red-600 text-xs font-semibold rounded-lg transition-all" title="Permanently delete this campaign">🗑</button>
         `;
       default:
         return '';
@@ -445,6 +447,7 @@ function initializeCampaignManager() {
     const exportBtn = card.querySelector('.action-export');
     const archiveBtn = card.querySelector('.action-archive');
     const unarchiveBtn = card.querySelector('.action-unarchive');
+    const deleteBtn = card.querySelector('.action-delete');
 
     if (startBtn) startBtn.addEventListener('click', () => campaignAction(campaign.id, 'start'));
     if (pauseBtn) pauseBtn.addEventListener('click', () => campaignAction(campaign.id, 'pause'));
@@ -462,6 +465,25 @@ function initializeCampaignManager() {
     if (unarchiveBtn) unarchiveBtn.addEventListener('click', () => {
       campaignAction(campaign.id, 'unarchive');
     });
+    if (deleteBtn) deleteBtn.addEventListener('click', () => {
+      if (confirm(`Permanently delete campaign "${campaign.name}" and all its data?\n\nThis cannot be undone.`)) {
+        deleteCampaign(campaign.id);
+      }
+    });
+  }
+
+  async function deleteCampaign(campaignId) {
+    try {
+      const response = await fetch(`/api/campaigns/${campaignId}`, { method: 'DELETE' });
+      const result = await response.json();
+      if (response.ok && result.success) {
+        setTimeout(() => { loadCampaigns(); updateDashboardStatistics(); }, 300);
+      } else {
+        alert(`Failed to delete campaign: ${result.error}`);
+      }
+    } catch (error) {
+      alert(`Error: ${error.message}`);
+    }
   }
 
   async function campaignAction(campaignId, action) {

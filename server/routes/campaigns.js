@@ -723,6 +723,36 @@ router.post('/:id/unarchive', (req, res) => {
 });
 
 /**
+ * DELETE /api/campaigns/:id
+ * Permanently delete a campaign and all its contacts/call_logs
+ * Cancels the campaign first if it's still running
+ */
+router.delete('/:id', (req, res) => {
+  try {
+    const db = getDatabase();
+    const campaignId = parseInt(req.params.id);
+
+    // Cancel in processor if running
+    const batchProcessor = req.app.locals.batchProcessor;
+    if (batchProcessor) {
+      try { batchProcessor.cancel(campaignId); } catch (_) {}
+    }
+
+    // Delete all related data
+    db.prepare(`DELETE FROM call_logs WHERE campaign_id = ? OR batch_id = ?`).run(campaignId, campaignId);
+    db.prepare(`DELETE FROM contacts WHERE campaign_id = ? OR batch_id = ?`).run(campaignId, campaignId);
+    db.prepare(`DELETE FROM campaigns WHERE id = ?`).run(campaignId);
+    db.prepare(`DELETE FROM batches WHERE id = ?`).run(campaignId);
+
+    console.log(`🗑️  Campaign ${campaignId} permanently deleted`);
+    res.json({ success: true, message: `Campaign ${campaignId} deleted` });
+  } catch (error) {
+    console.error('❌ Error deleting campaign:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/callbacks/summary
  * Get retry/callback summary across all campaigns
  */
