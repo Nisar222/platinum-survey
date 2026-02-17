@@ -678,6 +678,31 @@ app.post('/api/test/simulate-callback', (req, res) => {
   });
 });
 
+// ============================================================================
+// VAPI phone number list proxy (keeps VAPI credentials server-side)
+// GET /api/vapi/phone-numbers
+// ============================================================================
+app.get('/api/vapi/phone-numbers', async (_req, res) => {
+  try {
+    const response = await fetch('https://api.vapi.ai/phone-number?limit=100', {
+      headers: { 'Authorization': `Bearer ${process.env.VAPI_PRIVATE_KEY}` }
+    });
+    if (!response.ok) {
+      return res.status(response.status).json({ error: 'Failed to fetch phone numbers from VAPI' });
+    }
+    const data = await response.json();
+    const numbers = (Array.isArray(data) ? data : (data.results || [])).map(n => ({
+      id: n.id,
+      number: n.number || n.sipUri || n.id,
+      label: n.name || n.number || n.id
+    }));
+    res.json({ numbers });
+  } catch (error) {
+    console.error('❌ Error fetching VAPI phone numbers:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Settings endpoints
 const settingsPath = new URL('../config/settings.json', import.meta.url).pathname;
 

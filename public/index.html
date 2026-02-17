@@ -262,11 +262,13 @@
                     <div id="settingsPanel" class="hidden px-6 pb-6 space-y-4">
                         <div class="grid grid-cols-1 gap-3 mb-2">
                             <div>
-                                <label class="block text-xs font-semibold text-gray-500 mb-1">Phone Number ID <span class="text-gray-400 font-normal">— overrides .env VAPI_PHONE_NUMBER_ID</span></label>
-                                <input type="text" id="setting_phoneNumberId" placeholder="Leave blank to use .env value" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-400 outline-none font-mono">
+                                <label class="block text-xs font-semibold text-gray-500 mb-1">Outbound Phone Number</label>
+                                <select id="setting_phoneNumberId" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-400 outline-none bg-white">
+                                    <option value="">Loading numbers...</option>
+                                </select>
                             </div>
                             <div>
-                                <label class="block text-xs font-semibold text-gray-500 mb-1">Assistant ID <span class="text-gray-400 font-normal">— overrides .env VAPI_ASSISTANT_ID</span></label>
+                                <label class="block text-xs font-semibold text-gray-500 mb-1">Assistant ID <span class="text-gray-400 font-normal">— overrides .env</span></label>
                                 <input type="text" id="setting_assistantId" placeholder="Leave blank to use .env value" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-400 outline-none font-mono">
                             </div>
                         </div>

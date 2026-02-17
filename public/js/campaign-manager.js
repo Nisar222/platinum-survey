@@ -877,11 +877,33 @@ function initializeCampaignManager() {
     });
   }
 
+  async function populatePhoneNumbers(savedId) {
+    const select = document.getElementById('setting_phoneNumberId');
+    if (!select) return;
+    try {
+      const res = await fetch('/api/vapi/phone-numbers');
+      const data = await res.json();
+      const numbers = data.numbers || [];
+      select.innerHTML = numbers.length
+        ? numbers.map(n => `<option value="${n.id}"${n.id === savedId ? ' selected' : ''}>${n.number}${n.label && n.label !== n.number ? ' — ' + n.label : ''}</option>`).join('')
+        : '<option value="">No phone numbers found</option>';
+      if (savedId && !numbers.find(n => n.id === savedId)) {
+        select.insertAdjacentHTML('afterbegin', `<option value="${savedId}" selected>${savedId} (saved)</option>`);
+      }
+    } catch {
+      select.innerHTML = '<option value="">Failed to load numbers</option>';
+    }
+  }
+
   async function loadSettings() {
     try {
       const response = await fetch('/api/settings');
       const settings = await response.json();
-      const fields = ['phoneNumberId', 'assistantId', 'maxConcurrentCalls', 'maxAttemptsPerContact',
+
+      // Populate phone number dropdown first, then select saved value
+      await populatePhoneNumbers(settings.phoneNumberId || '');
+
+      const fields = ['assistantId', 'maxConcurrentCalls', 'maxAttemptsPerContact',
                       'interCallDelaySeconds', 'businessHoursStart', 'businessHoursEnd',
                       'timezone', 'noAnswerRetryDays', 'callbackRetryHours'];
       fields.forEach(key => {
