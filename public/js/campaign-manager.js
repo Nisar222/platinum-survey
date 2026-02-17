@@ -278,6 +278,22 @@ function initializeCampaignManager() {
         </div>
       </div>
 
+      <!-- Call Outcomes -->
+      <div class="flex justify-between mb-3 px-1">
+        <div class="text-center">
+          <div class="text-sm font-bold text-green-600">${campaign.display_completed || 0}</div>
+          <div class="text-[10px] text-gray-400 uppercase tracking-wide">Completed</div>
+        </div>
+        <div class="text-center">
+          <div class="text-sm font-bold text-yellow-600">${campaign.display_rescheduled || 0}</div>
+          <div class="text-[10px] text-gray-400 uppercase tracking-wide">Rescheduled</div>
+        </div>
+        <div class="text-center">
+          <div class="text-sm font-bold text-red-600">${campaign.display_failed || 0}</div>
+          <div class="text-[10px] text-gray-400 uppercase tracking-wide">Failed</div>
+        </div>
+      </div>
+
       <!-- Progress bar -->
       <div class="mb-3">
         <div class="flex justify-between text-xs text-gray-500 mb-1">
@@ -355,6 +371,33 @@ function initializeCampaignManager() {
       archived:  '<span class="px-2 py-0.5 bg-gray-200 text-gray-500 text-xs font-semibold rounded-full whitespace-nowrap">📦 Archived</span>'
     };
     return badges[status] || badges.pending;
+  }
+
+  /**
+   * Map internal contact/call status to customer-facing display status
+   */
+  function getDisplayStatus(status) {
+    switch (status) {
+      case 'completed': return 'Completed';
+      case 'no_answer':
+      case 'callback_requested':
+      case 'calling':
+      case 'pending': return 'Rescheduled';
+      case 'max_attempts':
+      case 'failed': return 'Failed';
+      default: return status || '—';
+    }
+  }
+
+  function getDisplayStatusBadge(status) {
+    const display = getDisplayStatus(status);
+    const styles = {
+      'Completed': 'bg-green-100 text-green-700',
+      'Rescheduled': 'bg-yellow-100 text-yellow-700',
+      'Failed': 'bg-red-100 text-red-700'
+    };
+    const cls = styles[display] || 'bg-gray-100 text-gray-600';
+    return `<span class="px-1.5 py-0.5 rounded text-xs font-medium ${cls}">${display}</span>`;
   }
 
   function getCampaignActions(campaign) {
@@ -816,8 +859,8 @@ function initializeCampaignManager() {
     try {
       const response = await fetch('/api/settings');
       const settings = await response.json();
-      const fields = ['maxConcurrentCalls', 'maxAttemptsPerContact', 'callDelayMinSeconds',
-                      'callDelayMaxSeconds', 'businessHoursStart', 'businessHoursEnd',
+      const fields = ['phoneNumberId', 'assistantId', 'maxConcurrentCalls', 'maxAttemptsPerContact',
+                      'interCallDelaySeconds', 'businessHoursStart', 'businessHoursEnd',
                       'timezone', 'noAnswerRetryDays', 'callbackRetryHours'];
       fields.forEach(key => {
         const el = document.getElementById(`setting_${key}`);
@@ -832,10 +875,11 @@ function initializeCampaignManager() {
     saveSettingsBtn.addEventListener('click', async () => {
       try {
         const settings = {
+          phoneNumberId: document.getElementById('setting_phoneNumberId').value.trim(),
+          assistantId: document.getElementById('setting_assistantId').value.trim(),
           maxConcurrentCalls: parseInt(document.getElementById('setting_maxConcurrentCalls').value),
           maxAttemptsPerContact: parseInt(document.getElementById('setting_maxAttemptsPerContact').value),
-          callDelayMinSeconds: parseInt(document.getElementById('setting_callDelayMinSeconds').value),
-          callDelayMaxSeconds: parseInt(document.getElementById('setting_callDelayMaxSeconds').value),
+          interCallDelaySeconds: parseInt(document.getElementById('setting_interCallDelaySeconds').value),
           businessHoursStart: parseInt(document.getElementById('setting_businessHoursStart').value),
           businessHoursEnd: parseInt(document.getElementById('setting_businessHoursEnd').value),
           timezone: document.getElementById('setting_timezone').value,
@@ -942,7 +986,7 @@ function initializeCampaignManager() {
           tr.innerHTML = `
             <td class="px-3 py-2 font-medium text-gray-800">${call.customer_name || '—'}</td>
             <td class="px-3 py-2 text-gray-500">${call.campaign_name || '—'}</td>
-            <td class="px-3 py-2"><span class="px-1.5 py-0.5 rounded text-xs font-medium ${call.call_status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}">${call.call_status || '—'}</span></td>
+            <td class="px-3 py-2">${getDisplayStatusBadge(call.call_status)}</td>
             <td class="px-3 py-2 text-gray-500">${call.rating || '—'}</td>
             <td class="px-3 py-2 text-gray-500">${dur}</td>
             <td class="px-3 py-2 text-gray-400">${time}</td>

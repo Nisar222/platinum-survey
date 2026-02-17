@@ -1,7 +1,8 @@
 {
+  "phoneNumberId": "",
+  "assistantId": "",
   "maxConcurrentCalls": 5,
-  "callDelayMinSeconds": 30,
-  "callDelayMaxSeconds": 60,
+  "interCallDelaySeconds": 300,
   "maxAttemptsPerContact": 3,
   "businessHoursStart": 9,
   "businessHoursEnd": 17,

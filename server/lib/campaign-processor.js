@@ -5,8 +5,34 @@
  */
 
 import { getDatabase } from '../db/database.js';
-import { calculateNextRetry, getRandomDelay } from './business-hours.js';
+import { calculateNextRetry } from './business-hours.js';
 import fetch from 'node-fetch';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
+import path from 'path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const settingsPath = path.join(__dirname, '../../config/settings.json');
+const fsModule = { readFileSync };
+
+function getSettings() {
+  try {
+    return JSON.parse(readFileSync(settingsPath, 'utf8'));
+  } catch {
+    return {};
+  }
+}
+
+function getPhoneNumberId() {
+  const s = getSettings();
+  return s.phoneNumberId || process.env.VAPI_PHONE_NUMBER_ID;
+}
+
+function getAssistantId() {
+  const s = getSettings();
+  return s.assistantId || process.env.VAPI_ASSISTANT_ID;
+}
 
 class CampaignProcessor {
   constructor(io, logToGoogleSheets) {
@@ -184,13 +210,57 @@ class CampaignProcessor {
 
       await this.processContact(contact);
 
-      const delayMin = parseInt(process.env.BATCH_CALL_DELAY_MIN || '30000');
-      const delayMax = parseInt(process.env.BATCH_CALL_DELAY_MAX || '60000');
-      const delay = getRandomDelay(delayMin, delayMax);
+      // Wait for the call to fully complete (webhook received) before proceeding
+      await this.waitForCallToEnd(contact.id);
 
-      console.log(`⏳ Waiting ${Math.round(delay / 1000)}s before next call...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      // Configurable inter-call delay (default 5 minutes)
+      const delaySeconds = this.getInterCallDelaySeconds();
+      console.log(`⏳ Inter-call delay: ${delaySeconds}s before next call...`);
+      await new Promise(resolve => setTimeout(resolve, delaySeconds * 1000));
     }
+  }
+
+  /**
+   * Get the configured inter-call delay in seconds
+   * Reads from env first, then settings.json, defaults to 300s (5 min)
+   */
+  getInterCallDelaySeconds() {
+    if (process.env.INTER_CALL_DELAY_SECONDS) {
+      return parseInt(process.env.INTER_CALL_DELAY_SECONDS);
+    }
+    try {
+      const { readFileSync } = fsModule;
+      const s = JSON.parse(readFileSync(settingsPath, 'utf8'));
+      return parseInt(s.interCallDelaySeconds || '300');
+    } catch {
+      return 300;
+    }
+  }
+
+  /**
+   * Wait until the contact's status is no longer 'calling'
+   * (i.e. the webhook has been received and handleCallComplete has run)
+   */
+  async waitForCallToEnd(contactId) {
+    const maxWaitMs = parseInt(process.env.MAX_CALL_WAIT_MS || '600000'); // 10 min max
+    const pollMs = 5000; // check every 5s
+    const start = Date.now();
+
+    console.log(`⏳ Waiting for contact ${contactId} call to complete...`);
+
+    while (Date.now() - start < maxWaitMs) {
+      const db = getDatabase();
+      const contact = db.prepare('SELECT status FROM contacts WHERE id = ?').get(contactId);
+
+      if (!contact || contact.status !== 'calling') {
+        console.log(`✅ Contact ${contactId} call ended (status: ${contact?.status || 'not found'})`);
+        return;
+      }
+
+      await new Promise(resolve => setTimeout(resolve, pollMs));
+    }
+
+    console.warn(`⚠️  waitForCallToEnd timeout for contact ${contactId} after ${maxWaitMs / 1000}s`);
   }
 
   /**
@@ -256,8 +326,8 @@ class CampaignProcessor {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          assistantId: process.env.VAPI_ASSISTANT_ID,
-          phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
+          assistantId: getAssistantId(),
+          phoneNumberId: getPhoneNumberId(),
           customer: {
             number: contact.phone_number,
             name: contact.customer_name
@@ -558,6 +628,18 @@ class CampaignProcessor {
 
     if (callData.transcriptText && Number(callData.duration) > 0) {
       return { status: 'completed', disposition: 'completed', needsRetry: false };
+    }
+
+    // assistant-ended-call means assistant terminated the call (e.g. no response from customer)
+    // This is a no_answer — do not treat as a technical failure
+    const endedReason = (callData.endedReason || '').toLowerCase();
+    if (endedReason === 'assistant-ended-call' || endedReason === 'assistant_ended_call') {
+      return { status: 'no_answer', disposition: 'no_answer', needsRetry: true, retryType: 'no_answer' };
+    }
+
+    // customer-ended-call with no data = hung up without completing
+    if (endedReason === 'customer-ended-call' || endedReason === 'customer_ended_call') {
+      return { status: 'no_answer', disposition: 'no_answer', needsRetry: true, retryType: 'no_answer' };
     }
 
     return { status: 'no_answer', disposition: 'no_answer', needsRetry: true, retryType: 'no_answer' };

@@ -15,6 +15,7 @@ import RetryScheduler from './lib/retry-scheduler.js';
 import CampaignScheduler from './lib/campaign-scheduler.js';
 import campaignRoutes from './routes/campaigns.js';
 import scheduleRoutes from './routes/schedules.js';
+import { calculateNextRetry } from './lib/business-hours.js';
 
 dotenv.config();
 
@@ -641,6 +642,41 @@ if (runningCampaigns.length > 0) {
 app.use('/api/campaigns', campaignRoutes);
 app.use('/api/schedules', scheduleRoutes);
 app.use('/api/batches', campaignRoutes);
+
+// ============================================================================
+// TEST: Simulate callback scheduling
+// POST /api/test/simulate-callback
+// Body: { callbackSchedule, disposition }
+// Returns what calculateNextRetry would schedule
+// ============================================================================
+app.post('/api/test/simulate-callback', (req, res) => {
+  const { callbackSchedule, disposition = 'callback_requested' } = req.body;
+  const now = new Date();
+
+  const nextRetry = calculateNextRetry(disposition, now, callbackSchedule || null);
+
+  const diffMs = nextRetry - now;
+  const diffMins = Math.round(diffMs / 60000);
+  const diffHours = (diffMs / 3600000).toFixed(1);
+
+  res.json({
+    input: {
+      disposition,
+      callbackSchedule: callbackSchedule || '(none)',
+      currentTime: now.toISOString(),
+      currentTimeLocal: now.toLocaleString('en-GB', { timeZone: process.env.TIMEZONE || 'Asia/Dubai' })
+    },
+    result: {
+      nextRetryAt: nextRetry.toISOString(),
+      nextRetryLocal: nextRetry.toLocaleString('en-GB', { timeZone: process.env.TIMEZONE || 'Asia/Dubai' }),
+      delayMinutes: diffMins,
+      delayHours: diffHours
+    },
+    explanation: callbackSchedule
+      ? `Customer requested: "${callbackSchedule}" → scheduled at ${nextRetry.toISOString()} (adjusted to business hours if needed)`
+      : `No specific time requested → default 4h delay → ${nextRetry.toISOString()}`
+  });
+});
 
 // Settings endpoints
 const settingsPath = new URL('../config/settings.json', import.meta.url).pathname;
