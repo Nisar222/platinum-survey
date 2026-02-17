@@ -350,7 +350,9 @@ class CampaignProcessor {
       });
 
       if (!vapiResponse.ok) {
-        throw new Error(`VAPI API error: ${vapiResponse.status} ${vapiResponse.statusText}`);
+        const errBody = await vapiResponse.json().catch(() => ({}));
+        console.error(`❌ VAPI API error:`, JSON.stringify(errBody));
+        throw new Error(`VAPI API error: ${vapiResponse.status} — ${JSON.stringify(errBody?.message || errBody)}`);
       }
 
       const vapiData = await vapiResponse.json();
