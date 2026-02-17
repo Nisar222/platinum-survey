@@ -611,10 +611,11 @@ class CampaignProcessor {
     if (vapiDisposition === 'completed') {
       return { status: 'completed', disposition: 'completed', needsRetry: false };
     }
-    if (vapiDisposition === 'callback' || vapiDisposition === 'callback_requested') {
+    if (['callback', 'callback_requested', 'reschedule requested', 'reschedule_requested',
+         'rescheduled', 'call back', 'call_back'].includes(vapiDisposition)) {
       return { status: 'callback_requested', disposition: 'callback_requested', needsRetry: true, retryType: 'callback_requested' };
     }
-    if (vapiDisposition === 'no_answer' || vapiDisposition === 'no answer') {
+    if (['no_answer', 'no answer', 'no-answer', 'unanswered', 'not answered'].includes(vapiDisposition)) {
       return { status: 'no_answer', disposition: 'no_answer', needsRetry: true, retryType: 'no_answer' };
     }
 
