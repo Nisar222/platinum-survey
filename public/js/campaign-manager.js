@@ -475,29 +475,31 @@ function initializeCampaignManager() {
   async function deleteCampaign(campaignId) {
     try {
       const response = await fetch(`/api/campaigns/${campaignId}`, { method: 'DELETE' });
+      if (!response.ok) { console.error(`Failed to delete campaign ${campaignId}: ${response.status}`); return; }
       const result = await response.json();
-      if (response.ok && result.success) {
+      if (result.success) {
         setTimeout(() => { loadCampaigns(); updateDashboardStatistics(); }, 300);
       } else {
-        alert(`Failed to delete campaign: ${result.error}`);
+        console.error(`Failed to delete campaign: ${result.error}`);
       }
     } catch (error) {
-      alert(`Error: ${error.message}`);
+      console.error(`Error deleting campaign: ${error.message}`);
     }
   }
 
   async function campaignAction(campaignId, action) {
     try {
       const response = await fetch(`/api/campaigns/${campaignId}/${action}`, { method: 'POST' });
+      if (!response.ok) { console.error(`Failed to ${action} campaign ${campaignId}: ${response.status}`); return; }
       const result = await response.json();
 
-      if (response.ok && result.success) {
+      if (result.success) {
         setTimeout(() => { loadCampaigns(); updateDashboardStatistics(); }, 500);
       } else {
-        alert(`Failed to ${action} campaign: ${result.error}`);
+        console.error(`Failed to ${action} campaign: ${result.error}`);
       }
     } catch (error) {
-      alert(`Error: ${error.message}`);
+      console.error(`Error on campaign action ${action}: ${error.message}`);
     }
   }
 
@@ -509,8 +511,9 @@ function initializeCampaignManager() {
         fetch('/api/campaigns/queue/status')
       ]);
 
-      const campaignData = await campaignsRes.json();
-      const queueData = await queueRes.json();
+      if (!campaignsRes.ok || !queueRes.ok) return;
+      const campaignData = await campaignsRes.json().catch(() => ({}));
+      const queueData = await queueRes.json().catch(() => ({}));
 
       const campaigns = campaignData.campaigns || campaignData.batches || [];
 
