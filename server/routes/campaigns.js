@@ -414,6 +414,107 @@ router.get('/reports/calls', (req, res) => {
 });
 
 /**
+ * GET /api/callbacks/pending
+ * Get pending callbacks sorted by due date
+ * NOTE: must be before /:id to prevent Express matching "callbacks" as an id
+ */
+router.get('/callbacks/pending', (req, res) => {
+  try {
+    const db = getDatabase();
+
+    const callbacks = db.prepare(`
+      SELECT c.*, camp.name as campaign_name
+      FROM contacts c
+      JOIN campaigns camp ON c.campaign_id = camp.id
+      WHERE c.status IN ('no_answer', 'callback_requested')
+        AND c.next_retry_at IS NOT NULL
+        AND camp.status NOT IN ('cancelled', 'archived')
+      ORDER BY c.next_retry_at ASC
+      LIMIT 100
+    `).all();
+
+    res.json({ callbacks });
+  } catch (error) {
+    console.error('❌ Error fetching pending callbacks:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/callbacks/summary
+ * Get retry/callback summary across all campaigns
+ * NOTE: must be before /:id to prevent Express matching "callbacks" as an id
+ */
+router.get('/callbacks/summary', (req, res) => {
+  try {
+    const retryScheduler = req.app.locals.retryScheduler;
+    if (!retryScheduler) {
+      return res.status(500).json({ error: 'Retry scheduler not initialized' });
+    }
+    const summary = retryScheduler.getPendingRetrySummary();
+    res.json({ summary });
+  } catch (error) {
+    console.error('❌ Error fetching callback summary:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * POST /api/callbacks/process-now
+ * Manually trigger retry processing (outside of scheduled run)
+ * NOTE: must be before /:id to prevent Express matching "callbacks" as an id
+ */
+router.post('/callbacks/process-now', async (req, res) => {
+  try {
+    const retryScheduler = req.app.locals.retryScheduler;
+    if (!retryScheduler) {
+      return res.status(500).json({ error: 'Retry scheduler not initialized' });
+    }
+    await retryScheduler.processRetries();
+    res.json({ success: true, message: 'Retry processing triggered' });
+  } catch (error) {
+    console.error('❌ Error triggering retry processing:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/queue/status
+ * Get current queue processing status
+ * NOTE: must be before /:id to prevent Express matching "queue" as an id
+ */
+router.get('/queue/status', (req, res) => {
+  try {
+    const db = getDatabase();
+
+    const activeCampaigns = db.prepare(`
+      SELECT * FROM campaigns WHERE status = 'running'
+    `).all();
+
+    const pendingContacts = db.prepare(`
+      SELECT COUNT(*) as count FROM contacts WHERE status = 'pending'
+    `).get();
+
+    const callingContacts = db.prepare(`
+      SELECT c.*, camp.name as campaign_name
+      FROM contacts c
+      JOIN campaigns camp ON c.campaign_id = camp.id
+      WHERE c.status = 'calling'
+    `).all();
+
+    res.json({
+      activeCampaigns,
+      activeBatches: activeCampaigns,
+      pendingCount: pendingContacts.count,
+      currentlyCalling: callingContacts
+    });
+  } catch (error) {
+    console.error('❌ Error fetching queue status:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/campaigns/:id
  * Get campaign details with contacts
  */
@@ -562,32 +663,6 @@ router.post('/:id/cancel', (req, res) => {
     res.json({ success: true, message: `Campaign ${campaignId} cancelled` });
   } catch (error) {
     console.error('❌ Error cancelling campaign:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/callbacks/pending
- * Get pending callbacks sorted by due date
- */
-router.get('/callbacks/pending', (req, res) => {
-  try {
-    const db = getDatabase();
-
-    const callbacks = db.prepare(`
-      SELECT c.*, camp.name as campaign_name
-      FROM contacts c
-      JOIN campaigns camp ON c.campaign_id = camp.id
-      WHERE c.status IN ('no_answer', 'callback_requested')
-        AND c.next_retry_at IS NOT NULL
-        AND camp.status NOT IN ('cancelled', 'archived')
-      ORDER BY c.next_retry_at ASC
-      LIMIT 100
-    `).all();
-
-    res.json({ callbacks });
-  } catch (error) {
-    console.error('❌ Error fetching pending callbacks:', error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -754,42 +829,6 @@ router.delete('/:id', (req, res) => {
 });
 
 /**
- * GET /api/callbacks/summary
- * Get retry/callback summary across all campaigns
- */
-router.get('/callbacks/summary', (req, res) => {
-  try {
-    const retryScheduler = req.app.locals.retryScheduler;
-    if (!retryScheduler) {
-      return res.status(500).json({ error: 'Retry scheduler not initialized' });
-    }
-    const summary = retryScheduler.getPendingRetrySummary();
-    res.json({ summary });
-  } catch (error) {
-    console.error('❌ Error fetching callback summary:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * POST /api/callbacks/process-now
- * Manually trigger retry processing (outside of scheduled run)
- */
-router.post('/callbacks/process-now', async (req, res) => {
-  try {
-    const retryScheduler = req.app.locals.retryScheduler;
-    if (!retryScheduler) {
-      return res.status(500).json({ error: 'Retry scheduler not initialized' });
-    }
-    await retryScheduler.processRetries();
-    res.json({ success: true, message: 'Retry processing triggered' });
-  } catch (error) {
-    console.error('❌ Error triggering retry processing:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
  * GET /api/campaigns/:id/export
  * Export campaign results as CSV
  */
@@ -879,41 +918,6 @@ router.get('/:id/export', (req, res) => {
 
   } catch (error) {
     console.error('❌ Error exporting campaign:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-/**
- * GET /api/queue/status
- * Get current queue processing status
- */
-router.get('/queue/status', (req, res) => {
-  try {
-    const db = getDatabase();
-
-    const activeCampaigns = db.prepare(`
-      SELECT * FROM campaigns WHERE status = 'running'
-    `).all();
-
-    const pendingContacts = db.prepare(`
-      SELECT COUNT(*) as count FROM contacts WHERE status = 'pending'
-    `).get();
-
-    const callingContacts = db.prepare(`
-      SELECT c.*, camp.name as campaign_name
-      FROM contacts c
-      JOIN campaigns camp ON c.campaign_id = camp.id
-      WHERE c.status = 'calling'
-    `).all();
-
-    res.json({
-      activeCampaigns,
-      activeBatches: activeCampaigns, // backwards compat
-      pendingCount: pendingContacts.count,
-      currentlyCalling: callingContacts
-    });
-  } catch (error) {
-    console.error('❌ Error fetching queue status:', error);
     res.status(500).json({ error: error.message });
   }
 });
