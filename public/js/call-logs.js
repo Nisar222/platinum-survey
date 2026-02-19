@@ -234,19 +234,21 @@
     const bubbles = parsed.map(({ isAssistant, message }) => {
       if (isAssistant) {
         return `
-          <div class="flex items-start gap-2 mb-3">
-            <div class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-              <svg class="w-3 h-3 text-blue-600" fill="currentColor" viewBox="0 0 20 20"><path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z"/></svg>
+          <div class="flex items-start gap-3">
+            <div class="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm" style="background: linear-gradient(135deg, #2BB8D1, #6B4D9C)">
+              <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2a2 2 0 0 1 2 2c0 .74-.4 1.39-1 1.73V7h1a7 7 0 0 1 7 7h1a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1h-1v1a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1h1a7 7 0 0 1 7-7h1V5.73c-.6-.34-1-.99-1-1.73a2 2 0 0 1 2-2zm-5 9a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1zm10 0a1 1 0 0 0-1 1v1a1 1 0 0 0 2 0v-1a1 1 0 0 0-1-1z"/>
+              </svg>
             </div>
-            <div class="transcript-bubble-assistant px-3 py-2 text-sm text-gray-800 max-w-[85%]">${message}</div>
+            <div class="transcript-bubble-assistant px-4 py-2.5 text-sm text-gray-800 max-w-[82%] leading-relaxed">${message}</div>
           </div>
         `;
       } else {
         return `
-          <div class="flex items-start gap-2 justify-end mb-3">
-            <div class="transcript-bubble-caller px-3 py-2 text-sm text-gray-800 max-w-[85%]">${message}</div>
-            <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 mt-0.5">
-              <svg class="w-3 h-3 text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
+          <div class="flex items-start gap-3 justify-end">
+            <div class="transcript-bubble-caller px-4 py-2.5 text-sm text-gray-800 max-w-[82%] leading-relaxed">${message}</div>
+            <div class="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <svg class="w-3.5 h-3.5 text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
             </div>
           </div>
         `;
