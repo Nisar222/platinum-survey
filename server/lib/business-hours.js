@@ -23,8 +23,8 @@ const __dirname = path.dirname(__filename);
 
 // Configuration
 const BUSINESS_HOURS_START = parseInt(process.env.BUSINESS_HOURS_START || '9');  // 9 AM
-const BUSINESS_HOURS_END = parseInt(process.env.BUSINESS_HOURS_END || '17');     // 5 PM
-const TIMEZONE = process.env.TIMEZONE || 'America/New_York';
+const BUSINESS_HOURS_END = parseInt(process.env.BUSINESS_HOURS_END || '18');     // 6 PM
+const TIMEZONE = process.env.TIMEZONE || 'Asia/Dubai';
 
 // Load holidays from config file
 let holidays = [];
