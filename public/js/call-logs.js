@@ -15,8 +15,8 @@
   const summaryText    = document.getElementById('summaryText');
   const loadingState   = document.getElementById('loadingState');
   const emptyState     = document.getElementById('emptyState');
-  const detailPanel    = document.getElementById('detailPanel');
-  const closeDetail    = document.getElementById('closeDetail');
+  const noSelection    = document.getElementById('noSelection');
+  const callDetail     = document.getElementById('callDetail');
 
   // ── Init date range (last 30 days) ───────────────────────────────────────
   const today = new Date();
@@ -71,6 +71,8 @@
 
       summaryText.textContent = `${allCalls.length} call${allCalls.length !== 1 ? 's' : ''} · ${from} to ${to}`;
       renderGroups(allCalls);
+      // Auto-select first call
+      if (allCalls.length > 0) openDetail(allCalls[0]);
     } catch (e) {
       console.error('Failed to load calls:', e);
       loadingState.classList.add('hidden');
@@ -97,9 +99,9 @@
 
       // Group header
       section.innerHTML = `
-        <div class="px-5 py-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
-          <span class="text-sm font-semibold text-gray-700">${group.name}</span>
-          <span class="text-xs text-gray-400">${group.calls.length} call${group.calls.length !== 1 ? 's' : ''}</span>
+        <div class="group-header px-3 py-1.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+          <span class="text-xs font-semibold text-gray-600 truncate">${group.name}</span>
+          <span class="text-xs text-gray-400 flex-shrink-0 ml-1">${group.calls.length}</span>
         </div>
       `;
 
@@ -109,7 +111,7 @@
 
       group.calls.forEach(call => {
         const row = document.createElement('div');
-        row.className = 'call-row px-5 py-3 flex items-center gap-4';
+        row.className = 'call-row px-3 py-2.5 flex items-center gap-2';
         row.dataset.callId = call.id;
 
         const duration = call.duration_seconds
@@ -121,19 +123,10 @@
 
         row.innerHTML = `
           <div class="flex-1 min-w-0">
-            <div class="font-medium text-gray-800 text-sm truncate">${call.customer_name || '—'}</div>
-            <div class="text-xs text-gray-400 mt-0.5">${call.phone_number || '—'}</div>
+            <div class="font-medium text-gray-800 text-xs truncate">${call.customer_name || '—'}</div>
+            <div class="text-xs text-gray-400 mt-0.5 truncate">${time} · ${duration}</div>
           </div>
-          <div class="text-center hidden sm:block">
-            ${getDispositionBadge(call.call_disposition || call.call_status)}
-          </div>
-          <div class="text-xs text-gray-500 text-right whitespace-nowrap">
-            <div>${duration}</div>
-            <div class="text-gray-400 mt-0.5">${time}</div>
-          </div>
-          <div class="text-gray-300">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-          </div>
+          <div>${getDispositionBadge(call.call_disposition || call.call_status)}</div>
         `;
 
         row.addEventListener('click', () => openDetail(call));
@@ -203,8 +196,9 @@
     // Switch to transcript tab
     switchTab('transcript');
 
-    // Show panel
-    detailPanel.classList.remove('hidden-panel');
+    // Show detail, hide empty state
+    noSelection.classList.add('hidden');
+    callDetail.classList.remove('hidden');
   }
 
   // ── Render transcript ─────────────────────────────────────────────────────
@@ -268,13 +262,6 @@
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
 
-  // ── Close panel ───────────────────────────────────────────────────────────
-  closeDetail.addEventListener('click', () => {
-    detailPanel.classList.add('hidden-panel');
-    document.querySelectorAll('.call-row').forEach(r => r.classList.remove('active'));
-    document.getElementById('audioPlayer').pause();
-    activeCallId = null;
-  });
 
   // ── Export CSV ────────────────────────────────────────────────────────────
   exportBtn.addEventListener('click', () => {

@@ -6,151 +6,160 @@
   <title>Call Logs — Campaign Manager</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8f9fc; }
-    .call-row { cursor: pointer; transition: background 0.15s; }
-    .call-row:hover { background: #f0f4ff; }
-    .call-row.active { background: #eff6ff; border-left: 3px solid #3b82f6; }
-    .detail-panel { transition: transform 0.25s ease, opacity 0.25s ease; }
-    .detail-panel.hidden-panel { transform: translateX(100%); opacity: 0; pointer-events: none; }
-    .tab-btn.active { border-bottom: 2px solid #3b82f6; color: #2563eb; font-weight: 600; }
+    html, body { height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8f9fc; }
+    .call-row { cursor: pointer; transition: background 0.12s; border-left: 3px solid transparent; }
+    .call-row:hover { background: #f5f7ff; }
+    .call-row.active { background: #eff6ff; border-left-color: #3b82f6; }
+    .tab-btn { border-bottom: 2px solid transparent; color: #6b7280; }
+    .tab-btn.active { border-bottom-color: #3b82f6; color: #2563eb; font-weight: 600; }
     .transcript-bubble-assistant { background: #eff6ff; border-radius: 0 12px 12px 12px; }
     .transcript-bubble-caller { background: #f3f4f6; border-radius: 12px 0 12px 12px; }
-    ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar { width: 4px; height: 4px; }
+    ::-webkit-scrollbar-track { background: transparent; }
     ::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 4px; }
+    .group-header { position: sticky; top: 0; z-index: 1; }
   </style>
 </head>
-<body class="min-h-screen">
+<body class="flex flex-col h-screen">
 
-  <!-- Header -->
-  <header class="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
-    <div class="flex items-center gap-4">
-      <a href="/" class="flex items-center gap-2 text-gray-400 hover:text-gray-600 text-sm">
+  <!-- Top Header Bar -->
+  <header class="bg-white border-b border-gray-100 px-5 py-3 flex items-center justify-between flex-shrink-0">
+    <div class="flex items-center gap-3">
+      <a href="/" class="flex items-center gap-1.5 text-gray-400 hover:text-gray-600 text-sm">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
         Dashboard
       </a>
       <div class="w-px h-4 bg-gray-200"></div>
-      <div class="flex items-center gap-2">
-        <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-        <h1 class="text-lg font-bold text-gray-900">Call Logs</h1>
-      </div>
+      <svg class="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+      <h1 class="text-base font-bold text-gray-900">Call Logs</h1>
+      <span id="summaryText" class="text-xs text-gray-400"></span>
     </div>
-    <div class="flex items-center gap-3">
-      <!-- Filters -->
-      <select id="filterCampaign" class="text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-blue-400 bg-white">
+    <div class="flex items-center gap-2">
+      <select id="filterCampaign" class="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-blue-400 bg-white">
         <option value="">All Campaigns</option>
       </select>
-      <input type="date" id="filterFrom" class="text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-blue-400" />
-      <input type="date" id="filterTo" class="text-sm border border-gray-200 rounded-lg px-3 py-2 outline-none focus:border-blue-400" />
-      <button id="applyFilters" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white text-sm font-semibold rounded-lg transition-all">Apply</button>
-      <button id="exportCsv" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-semibold rounded-lg transition-all flex items-center gap-1.5">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <input type="date" id="filterFrom" class="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-blue-400" />
+      <input type="date" id="filterTo" class="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-blue-400" />
+      <button id="applyFilters" class="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs font-semibold rounded-lg transition-all">Apply</button>
+      <button id="exportCsv" class="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-semibold rounded-lg transition-all flex items-center gap-1">
+        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
         Export CSV
       </button>
     </div>
   </header>
 
-  <!-- Main layout -->
-  <div class="flex h-[calc(100vh-65px)]">
+  <!-- Split layout -->
+  <div class="flex flex-1 min-h-0">
 
-    <!-- Call List -->
-    <div id="callList" class="flex-1 overflow-y-auto">
-      <!-- Summary bar -->
-      <div id="summaryBar" class="px-6 py-3 bg-white border-b border-gray-100 text-sm text-gray-500 flex items-center justify-between">
-        <span id="summaryText">Loading...</span>
+    <!-- LEFT: Call list (fixed width, scrollable) -->
+    <div class="w-80 flex-shrink-0 bg-white border-r border-gray-100 flex flex-col min-h-0">
+      <!-- List header -->
+      <div class="px-4 py-2 border-b border-gray-50 bg-gray-50">
+        <span class="text-xs font-semibold text-gray-400 uppercase tracking-wide">Calls</span>
       </div>
-
-      <!-- Grouped calls -->
-      <div id="callGroups" class="p-4 space-y-4"></div>
-
-      <!-- Empty / loading states -->
-      <div id="loadingState" class="flex items-center justify-center h-64 text-gray-400">
-        <div class="text-center">
-          <svg class="w-8 h-8 mx-auto mb-2 animate-spin text-blue-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-          <p class="text-sm">Loading call logs...</p>
+      <!-- Scrollable list -->
+      <div id="callListScroll" class="flex-1 overflow-y-auto">
+        <div id="callGroups"></div>
+        <div id="loadingState" class="flex items-center justify-center h-40 text-gray-400">
+          <div class="text-center">
+            <svg class="w-6 h-6 mx-auto mb-2 animate-spin text-blue-400" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
+            <p class="text-xs">Loading...</p>
+          </div>
         </div>
-      </div>
-      <div id="emptyState" class="hidden flex items-center justify-center h-64 text-gray-400">
-        <div class="text-center">
-          <svg class="w-10 h-10 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.948V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
-          <p class="text-sm">No calls found for the selected period</p>
+        <div id="emptyState" class="hidden flex items-center justify-center h-40 text-gray-400">
+          <p class="text-xs">No calls found</p>
         </div>
       </div>
     </div>
 
-    <!-- Detail Panel -->
-    <div id="detailPanel" class="detail-panel hidden-panel w-[480px] bg-white border-l border-gray-100 flex flex-col overflow-hidden absolute right-0 top-[65px] bottom-0 shadow-xl z-20">
+    <!-- RIGHT: Detail panel (always visible, fills remaining space) -->
+    <div id="detailPanel" class="flex-1 flex flex-col min-h-0 bg-white">
 
-      <!-- Panel header -->
-      <div class="px-5 py-4 border-b border-gray-100 flex items-start justify-between">
-        <div>
-          <div id="detailName" class="font-bold text-gray-900 text-base"></div>
-          <div id="detailPhone" class="text-sm text-gray-500 mt-0.5"></div>
-          <div class="flex items-center gap-2 mt-2 flex-wrap">
-            <span id="detailCampaign" class="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium"></span>
-            <span id="detailDisposition" class="text-xs px-2 py-0.5 rounded-full font-medium"></span>
-            <span id="detailDuration" class="text-xs text-gray-500"></span>
-            <span id="detailTime" class="text-xs text-gray-400"></span>
-          </div>
+      <!-- Empty state (no call selected) -->
+      <div id="noSelection" class="flex-1 flex items-center justify-center text-gray-300">
+        <div class="text-center">
+          <svg class="w-12 h-12 mx-auto mb-3 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.948V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"/></svg>
+          <p class="text-sm text-gray-400">Select a call to view details</p>
         </div>
-        <button id="closeDetail" class="text-gray-400 hover:text-gray-600 p-1">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
       </div>
 
-      <!-- Audio player -->
-      <div id="audioSection" class="px-5 py-3 border-b border-gray-100 hidden">
-        <audio id="audioPlayer" controls class="w-full h-9 rounded-lg"></audio>
-      </div>
+      <!-- Call detail (shown when a call is selected) -->
+      <div id="callDetail" class="hidden flex-1 flex flex-col min-h-0">
 
-      <!-- Tabs -->
-      <div class="flex border-b border-gray-100 px-5">
-        <button class="tab-btn active py-3 pr-5 text-sm text-gray-600 border-b-2 border-transparent" data-tab="transcript">Transcript</button>
-        <button class="tab-btn py-3 px-5 text-sm text-gray-600 border-b-2 border-transparent" data-tab="analysis">Analysis</button>
-      </div>
-
-      <!-- Tab content -->
-      <div class="flex-1 overflow-y-auto">
-
-        <!-- Transcript tab -->
-        <div id="tab-transcript" class="p-4 space-y-3">
-          <div id="transcriptContent"></div>
-          <div id="noTranscript" class="hidden text-center py-8 text-gray-400 text-sm">No transcript available for this call</div>
-        </div>
-
-        <!-- Analysis tab -->
-        <div id="tab-analysis" class="p-4 space-y-4 hidden">
-          <div>
-            <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Call Summary</div>
-            <div id="analysisSummary" class="text-sm text-gray-700 leading-relaxed"></div>
-          </div>
-          <div>
-            <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Feedback Summary</div>
-            <div id="analysisFeedback" class="text-sm text-gray-700 leading-relaxed"></div>
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div class="bg-gray-50 rounded-xl p-3">
-              <div class="text-xs text-gray-400 mb-1">Sentiment</div>
-              <div id="analysisSentiment" class="text-sm font-semibold text-gray-700"></div>
+        <!-- Detail header -->
+        <div class="px-6 py-4 border-b border-gray-100 flex-shrink-0">
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="text-xs text-gray-400 mb-0.5">Details for call started at <span id="detailTime"></span></div>
+              <div class="flex items-center gap-3 mt-1">
+                <span class="text-xs font-semibold text-gray-500">Call Type: <span class="text-gray-800">Outbound</span></span>
+                <span class="text-xs font-semibold text-gray-500">Customer: <span id="detailName" class="text-gray-800"></span></span>
+                <span class="text-xs font-semibold text-gray-500">Number: <span id="detailPhone" class="text-gray-800"></span></span>
+              </div>
+              <div class="flex items-center gap-2 mt-2">
+                <span id="detailCampaign" class="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium"></span>
+                <span id="detailDisposition"></span>
+                <span id="detailDuration" class="text-xs text-gray-400"></span>
+              </div>
             </div>
-            <div class="bg-gray-50 rounded-xl p-3">
-              <div class="text-xs text-gray-400 mb-1">Rating</div>
-              <div id="analysisRating" class="text-sm font-semibold text-gray-700"></div>
-            </div>
-            <div class="bg-gray-50 rounded-xl p-3">
-              <div class="text-xs text-gray-400 mb-1">Ended Reason</div>
-              <div id="analysisEndedReason" class="text-sm font-semibold text-gray-700"></div>
-            </div>
-            <div class="bg-gray-50 rounded-xl p-3">
-              <div class="text-xs text-gray-400 mb-1">Attempt</div>
-              <div id="analysisAttempt" class="text-sm font-semibold text-gray-700"></div>
-            </div>
-          </div>
-          <div id="analysisCallbackSection" class="hidden bg-yellow-50 rounded-xl p-3">
-            <div class="text-xs text-yellow-700 font-semibold mb-1">Callback Requested</div>
-            <div id="analysisCallbackTime" class="text-sm text-yellow-800"></div>
           </div>
         </div>
 
+        <!-- Audio player -->
+        <div id="audioSection" class="px-6 py-3 border-b border-gray-100 flex-shrink-0 hidden">
+          <audio id="audioPlayer" controls class="w-full h-8 rounded"></audio>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex border-b border-gray-100 px-6 flex-shrink-0">
+          <button class="tab-btn py-2.5 mr-6 text-sm" data-tab="transcript">Transcript</button>
+          <button class="tab-btn py-2.5 px-0 text-sm" data-tab="analysis">Analysis</button>
+        </div>
+
+        <!-- Scrollable tab content -->
+        <div class="flex-1 overflow-y-auto">
+
+          <!-- Transcript -->
+          <div id="tab-transcript" class="p-5 space-y-3">
+            <div id="transcriptContent"></div>
+            <div id="noTranscript" class="hidden text-center py-8 text-gray-400 text-sm">No transcript available for this call</div>
+          </div>
+
+          <!-- Analysis -->
+          <div id="tab-analysis" class="p-5 space-y-4 hidden">
+            <div>
+              <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Call Summary</div>
+              <div id="analysisSummary" class="text-sm text-gray-700 leading-relaxed"></div>
+            </div>
+            <div>
+              <div class="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Feedback Summary</div>
+              <div id="analysisFeedback" class="text-sm text-gray-700 leading-relaxed"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-gray-50 rounded-xl p-3">
+                <div class="text-xs text-gray-400 mb-1">Sentiment</div>
+                <div id="analysisSentiment" class="text-sm font-semibold text-gray-700"></div>
+              </div>
+              <div class="bg-gray-50 rounded-xl p-3">
+                <div class="text-xs text-gray-400 mb-1">Rating</div>
+                <div id="analysisRating" class="text-sm font-semibold text-gray-700"></div>
+              </div>
+              <div class="bg-gray-50 rounded-xl p-3">
+                <div class="text-xs text-gray-400 mb-1">Ended Reason</div>
+                <div id="analysisEndedReason" class="text-sm font-semibold text-gray-700"></div>
+              </div>
+              <div class="bg-gray-50 rounded-xl p-3">
+                <div class="text-xs text-gray-400 mb-1">Attempt</div>
+                <div id="analysisAttempt" class="text-sm font-semibold text-gray-700"></div>
+              </div>
+            </div>
+            <div id="analysisCallbackSection" class="hidden bg-yellow-50 rounded-xl p-3">
+              <div class="text-xs text-yellow-700 font-semibold mb-1">Callback Requested</div>
+              <div id="analysisCallbackTime" class="text-sm text-yellow-800"></div>
+            </div>
+          </div>
+
+        </div>
       </div>
     </div>
 
