@@ -9,6 +9,7 @@ import multer from 'multer';
 import XLSX from 'xlsx';
 import { google } from 'googleapis';
 import { readFileSync, writeFileSync } from 'fs';
+import rateLimit from 'express-rate-limit';
 import { initializeDatabase, recoverStuckCalls } from './db/database.js';
 import CampaignProcessor from './lib/campaign-processor.js';
 import RetryScheduler from './lib/retry-scheduler.js';
@@ -16,6 +17,7 @@ import CampaignScheduler from './lib/campaign-scheduler.js';
 import campaignRoutes from './routes/campaigns.js';
 import scheduleRoutes from './routes/schedules.js';
 import { calculateNextRetry } from './lib/business-hours.js';
+import { sendCrashAlert, checkSSLExpiry } from './lib/alerting.js';
 
 dotenv.config();
 
@@ -37,6 +39,16 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../public')));
+
+// Rate limiting — 200 requests per minute per IP for API routes
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' }
+});
+app.use('/api/', apiLimiter);
 
 // Configure multer for file uploads
 const upload = multer({ 
@@ -351,6 +363,16 @@ app.get('/api/webhook/calls', (req, res) => {
 
 // Webhook endpoint for call platform events
 const handleCallWebhook = async (req, res) => {
+  // VAPI webhook secret verification
+  const webhookSecret = process.env.VAPI_WEBHOOK_SECRET;
+  if (webhookSecret) {
+    const signature = req.headers['x-vapi-secret'];
+    if (signature !== webhookSecret) {
+      console.warn('⚠️  Webhook rejected: invalid secret');
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+  }
+
   const { message } = req.body;
 
   console.log('🔔 Call webhook received:', {
@@ -773,4 +795,26 @@ httpServer.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📱 Open http://localhost:${PORT} in your browser`);
   console.log(`📦 Campaign calling system initialized`);
+
+  // Check SSL cert expiry on startup and daily at 9 AM
+  checkSSLExpiry();
+  const checkHour = 9;
+  const now = new Date();
+  const msUntil9AM = new Date(now.getFullYear(), now.getMonth(), now.getDate() + (now.getHours() >= checkHour ? 1 : 0), checkHour, 0, 0) - now;
+  setTimeout(() => {
+    checkSSLExpiry();
+    setInterval(checkSSLExpiry, 24 * 60 * 60 * 1000);
+  }, msUntil9AM);
+});
+
+// Global crash handlers
+process.on('uncaughtException', async (err) => {
+  console.error('💥 Uncaught Exception:', err);
+  await sendCrashAlert(err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', async (reason) => {
+  console.error('💥 Unhandled Rejection:', reason);
+  await sendCrashAlert(reason instanceof Error ? reason : new Error(String(reason)));
 });
