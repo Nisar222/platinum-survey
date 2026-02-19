@@ -216,19 +216,25 @@
 
     // Parse transcript — VAPI format: "Role: message\nRole: message"
     const lines = text.split(/\n/).filter(l => l.trim());
-    const bubbles = lines.map(line => {
-      const match = line.match(/^(AI|Assistant|User|Caller|Bot|Agent):\s*(.+)$/i);
-      if (!match) {
-        // Unknown line — show as plain text
-        return `<div class="text-xs text-gray-400 italic py-1 px-2">${line}</div>`;
-      }
-      const role    = match[1];
-      const message = match[2];
-      const isAssistant = /^(AI|Assistant|Bot|Agent)$/i.test(role);
 
+    // Parse into [{role, message}] and consolidate consecutive same-role lines
+    const parsed = [];
+    lines.forEach(line => {
+      const match = line.match(/^(AI|Assistant|User|Caller|Bot|Agent):\s*(.+)$/i);
+      if (!match) return;
+      const isAssistant = /^(AI|Assistant|Bot|Agent)$/i.test(match[1]);
+      const last = parsed[parsed.length - 1];
+      if (last && last.isAssistant === isAssistant) {
+        last.message += ' ' + match[2];
+      } else {
+        parsed.push({ isAssistant, message: match[2] });
+      }
+    });
+
+    const bubbles = parsed.map(({ isAssistant, message }) => {
       if (isAssistant) {
         return `
-          <div class="flex items-start gap-2">
+          <div class="flex items-start gap-2 mb-3">
             <div class="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
               <svg class="w-3 h-3 text-blue-600" fill="currentColor" viewBox="0 0 20 20"><path d="M2 5a2 2 0 012-2h7a2 2 0 012 2v4a2 2 0 01-2 2H9l-3 3v-3H4a2 2 0 01-2-2V5z"/></svg>
             </div>
@@ -237,7 +243,7 @@
         `;
       } else {
         return `
-          <div class="flex items-start gap-2 justify-end">
+          <div class="flex items-start gap-2 justify-end mb-3">
             <div class="transcript-bubble-caller px-3 py-2 text-sm text-gray-800 max-w-[85%]">${message}</div>
             <div class="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0 mt-0.5">
               <svg class="w-3 h-3 text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/></svg>
