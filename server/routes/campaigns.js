@@ -355,7 +355,9 @@ router.get('/reports/calls', (req, res) => {
         cl.callback_schedule,
         cl.ended_reason,
         cl.recording_url,
-        cl.attempt_number
+        cl.transcript_text,
+        cl.attempt_number,
+        cl.campaign_id
       FROM call_logs cl
       JOIN contacts co ON cl.contact_id = co.id
       LEFT JOIN campaigns camp ON cl.campaign_id = camp.id
@@ -409,6 +411,36 @@ router.get('/reports/calls', (req, res) => {
 
   } catch (error) {
     console.error('❌ Error generating calls report:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/campaigns/calls/:callId — single call detail with full transcript
+ */
+router.get('/calls/:callId', (req, res) => {
+  try {
+    const db = getDatabase();
+    const call = db.prepare(`
+      SELECT
+        cl.id, cl.created_at as call_time, cl.vapi_call_id,
+        co.customer_name, co.phone_number,
+        camp.name as campaign_name, camp.id as campaign_id,
+        cl.call_status, cl.call_disposition, cl.duration_seconds,
+        cl.rating, cl.customer_feedback, cl.customer_sentiment,
+        cl.feedback_summary, cl.call_summary, cl.transcript_text,
+        cl.recording_url, cl.callback_requested, cl.callback_schedule,
+        cl.ended_reason, cl.attempt_number
+      FROM call_logs cl
+      JOIN contacts co ON cl.contact_id = co.id
+      LEFT JOIN campaigns camp ON cl.campaign_id = camp.id
+      WHERE cl.id = ?
+    `).get(parseInt(req.params.callId));
+
+    if (!call) return res.status(404).json({ error: 'Call not found' });
+    res.json(call);
+  } catch (error) {
+    console.error('❌ Error fetching call detail:', error);
     res.status(500).json({ error: error.message });
   }
 });
