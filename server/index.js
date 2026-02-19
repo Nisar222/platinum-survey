@@ -786,7 +786,12 @@ app.get('/api/calls/concurrency-status', (req, res) => {
   }
 });
 
-// Serve index.html for all routes (SPA)
+// Named page routes
+app.get('/call-logs', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/call-logs.html'));
+});
+
+// Serve index.html for all other routes (SPA)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
