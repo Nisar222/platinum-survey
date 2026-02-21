@@ -532,12 +532,16 @@ class CampaignProcessor {
       let nextRetryAt = null;
 
       if (disposition.needsRetry && contact.attempt_count < contact.max_attempts) {
+        // Use our own call_ended_at as the reference time (not VAPI's).
+        // VAPI's callbackSchedule is an AI-captured string — unreliable for scheduling.
+        // It is stored in the DB for display only.
+        const retryBaseTime = new Date(callEndedAt);
         nextRetryAt = calculateNextRetry(
           disposition.retryType,
-          new Date(),
-          callData.callbackSchedule
+          retryBaseTime,
+          null  // never trust VAPI's schedule string for actual scheduling
         );
-        console.log(`🔄 Next retry scheduled for: ${nextRetryAt}`);
+        console.log(`🔄 Next retry scheduled for: ${nextRetryAt} (based on call_ended_at: ${callEndedAt})`);
       } else if (contact.attempt_count >= contact.max_attempts) {
         nextStatus = 'max_attempts';
         console.log(`⚠️  Contact ${contactId} reached max attempts (${contact.max_attempts})`);
