@@ -8,6 +8,8 @@ import {
   addHours,
   setHours,
   setMinutes,
+  setSeconds,
+  setMilliseconds,
   format,
   parseISO
 } from 'date-fns';
@@ -128,7 +130,7 @@ export function getNextBusinessHour(datetime) {
 
     // If before business hours today, move to start of business hours
     if (hour < BUSINESS_HOURS_START && isWorkingDay(zonedDate) && !isHoliday(zonedDate)) {
-      zonedDate = setHours(setMinutes(zonedDate, 0), BUSINESS_HOURS_START);
+      zonedDate = setHours(setMinutes(setSeconds(setMilliseconds(zonedDate, 0), 0), 0), BUSINESS_HOURS_START);
       break;
     }
 

@@ -98,6 +98,12 @@ class CampaignProcessor {
   async resume(campaignId) {
     const db = getDatabase();
 
+    // Guard: prevent two concurrent processQueue loops for the same campaign
+    if (this.activeCampaigns.has(campaignId)) {
+      console.log(`⏭️  Campaign ${campaignId} already has an active queue loop — skipping duplicate resume`);
+      return;
+    }
+
     db.prepare(`
       UPDATE campaigns SET status = 'running' WHERE id = ?
     `).run(campaignId);
@@ -261,6 +267,19 @@ class CampaignProcessor {
     }
 
     console.warn(`⚠️  waitForCallToEnd timeout for contact ${contactId} after ${maxWaitMs / 1000}s`);
+    // Rescue the stuck contact — schedule a no_answer retry so the campaign can continue
+    const db = getDatabase();
+    const stuck = db.prepare(`
+      UPDATE contacts
+      SET status = 'no_answer',
+          next_retry_at = datetime('now', '+1 day'),
+          error_message = 'Call timeout — webhook not received within 10 minutes',
+          updated_at = datetime('now')
+      WHERE id = ? AND status = 'calling'
+    `).run(contactId);
+    if (stuck.changes > 0) {
+      console.warn(`🔄 Contact ${contactId} rescued from 'calling' — scheduled for no_answer retry`);
+    }
   }
 
   /**

@@ -486,28 +486,38 @@ const handleCallWebhook = async (req, res) => {
 
         console.log('📤 Prepared call data:', callData);
 
-        // Route to campaign processor or single call handler
+        // ACK immediately — do NOT await processing. VAPI has a short webhook timeout
+        // (~20s) and will retry if we don't respond fast. Processing happens async below.
+        res.status(200).json({ received: true });
+
+        // Route to campaign processor or single call handler (async, after 200 sent)
         // NOTE: Always route campaign calls even when structured outputs are absent —
         // determineDisposition() uses transcript keywords + endedReason as fallback
         const campaignIdResolved = campaignIdFromVars || metadata.campaignId || batchId;
-        if (contactId && campaignIdResolved) {
-          // CAMPAIGN CALL - Route to campaign processor
-          console.log(`📦 Campaign call detected: Contact ${contactId}, Campaign ${campaignIdResolved}`);
-          await batchProcessor.handleCallComplete(contactId, callData);
-        } else {
-          // SINGLE CALL - only log to Google Sheets if we have structured outputs
-          if (outputs.length > 0) {
-            console.log('📱 Single call - logging to Google Sheets');
-            try {
-              await logToGoogleSheets(callData);
-              console.log('✅ Successfully logged to Google Sheets from webhook');
-            } catch (error) {
-              console.error('❌ Error logging to Google Sheets from webhook:', error);
+        setImmediate(async () => {
+          try {
+            if (contactId && campaignIdResolved) {
+              // CAMPAIGN CALL - Route to campaign processor
+              console.log(`📦 Campaign call detected: Contact ${contactId}, Campaign ${campaignIdResolved}`);
+              await batchProcessor.handleCallComplete(contactId, callData);
+            } else {
+              // SINGLE CALL - only log to Google Sheets if we have structured outputs
+              if (outputs.length > 0) {
+                console.log('📱 Single call - logging to Google Sheets');
+                try {
+                  await logToGoogleSheets(callData);
+                  console.log('✅ Successfully logged to Google Sheets from webhook');
+                } catch (error) {
+                  console.error('❌ Error logging to Google Sheets from webhook:', error);
+                }
+              }
+              io.emit('call-data-received', callData);
             }
+          } catch (err) {
+            console.error('❌ Async webhook processing error:', err);
           }
-          io.emit('call-data-received', callData);
-        }
-        break;
+        });
+        return; // skip the res.json at the bottom of the try block
 
       case 'call-end':
         console.log('📞 Call ended:', message);
