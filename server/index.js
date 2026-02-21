@@ -420,94 +420,92 @@ const handleCallWebhook = async (req, res) => {
         console.log('  🔗 variableValues:', JSON.stringify(vars));
         console.log('  🔗 Contact ID:', contactId, '| Campaign/Batch ID:', campaignIdFromVars || metadata.campaignId || batchId);
 
-        // Extract structured outputs from the end-of-call report
-        if (message.artifact && message.artifact.structuredOutputs) {
+        // Parse structured outputs if present (may be absent for no-answer/hung-up calls)
+        const flattenStructured = (outputs) => {
+          if (!outputs) return [];
+          if (Array.isArray(outputs)) return outputs;
+          if (typeof outputs === 'object') return Object.values(outputs);
+          return [];
+        };
+
+        const outputs = flattenStructured(message.artifact?.structuredOutputs);
+        const getByName = (name) =>
+          outputs.find(
+            (o) => o.name?.toLowerCase() === name.toLowerCase()
+          )?.result;
+
+        if (outputs.length > 0) {
           console.log('✅ Structured outputs found:', JSON.stringify(message.artifact.structuredOutputs, null, 2));
+        } else {
+          console.log('⚠️  No structured outputs — using transcript/endedReason for disposition');
+        }
 
-          // Vapi may return structured outputs as an array or an object keyed by ID.
-          const flattenStructured = (outputs) => {
-            if (!outputs) return [];
-            if (Array.isArray(outputs)) return outputs;
-            if (typeof outputs === 'object') return Object.values(outputs);
-            return [];
-          };
+        // Extract the data we care about (safe defaults when structured outputs absent)
+        const structuredData = {
+          customerName: getByName('Customer Name'),
+          policyUsed: getByName('Policy Used'),
+          rating: getByName('Feedback Score'),
+          customerFeedback: getByName('Customer Feedback'),
+          customerSentiment: getByName('Customer Sentiment'),
+          feedbackSummary: getByName('Feedback Summary'),
+          callSummary: getByName('Call Summary'),
+          callDisposition: getByName('Call Disposition'),
+          callback: getByName('Callback') ?? false,
+          callbackSchedule: getByName('Callback Schedule'),
+          callbackAttempt: getByName('Callback Attempt'),
+        };
 
-          const outputs = flattenStructured(message.artifact.structuredOutputs);
-          const getByName = (name) =>
-            outputs.find(
-              (o) => o.name?.toLowerCase() === name.toLowerCase()
-            )?.result;
+        // Prepare call data
+        const callTimestampRaw = message.call?.startedAt || message.timestamp || Date.now();
+        const callTimestampIso = new Date(callTimestampRaw).toISOString();
 
-          // Extract the data we care about
-          const structuredData = {
-            customerName: getByName('Customer Name'),
-            policyUsed: getByName('Policy Used'),
-            rating: getByName('Feedback Score'), // Use Feedback Score as Rating
-            customerFeedback: getByName('Customer Feedback'),
-            customerSentiment: getByName('Customer Sentiment'),
-            feedbackSummary: getByName('Feedback Summary'),
-            callSummary: getByName('Call Summary'),
-            callDisposition: getByName('Call Disposition'),
-            callback: getByName('Callback') ?? false,
-            callbackSchedule: getByName('Callback Schedule'),
-            callbackAttempt: getByName('Callback Attempt'),
-          };
+        const callData = {
+          customerName: structuredData.customerName ||
+            message.call?.customer?.name ||
+            message.call?.variables?.customerName ||
+            '',
+          callTimestamp: callTimestampIso,
+          policyUsed: structuredData.policyUsed || '',
+          rating: structuredData.rating || '',
+          customerFeedback: structuredData.customerFeedback || '',
+          customerSentiment: structuredData.customerSentiment || '',
+          feedbackSummary: structuredData.feedbackSummary || '',
+          callSummary: structuredData.callSummary || message.artifact?.summary || '',
+          callback: structuredData.callback || false,
+          callbackSchedule: structuredData.callbackSchedule || '',
+          callbackAttempt: structuredData.callbackAttempt || 1,
+          duration: message.call?.startedAt && message.call?.endedAt
+            ? Math.round((new Date(message.call.endedAt) - new Date(message.call.startedAt)) / 1000)
+            : (message.artifact?.duration || message.call?.duration || message.duration || 0),
+          callDisposition: structuredData.callDisposition || '',
+          transcriptText: message.artifact?.transcript || message.call?.transcript || message.transcript || '',
+          stereoRecordingUrl: message.artifact?.stereoRecordingUrl || message.call?.stereoRecordingUrl || '',
+          vapiCallId: message.call?.id || message.callId || '',
+          endedReason: message.call?.endedReason || message.endedReason || ''
+        };
 
-          // Prepare call data for Google Sheets
-          const callTimestampRaw = message.call?.startedAt || message.timestamp || Date.now();
-          const callTimestampIso = new Date(callTimestampRaw).toISOString();
+        console.log('📤 Prepared call data:', callData);
 
-          const callData = {
-            // Prefer structured output, then explicit customer name on the call object, then variables passed when starting the call
-            customerName: structuredData.customerName ||
-              message.call?.customer?.name ||
-              message.call?.variables?.customerName ||
-              '',
-            callTimestamp: callTimestampIso,
-            policyUsed: structuredData.policyUsed || '',
-            rating: structuredData.rating || '', // This is now Feedback Score (Column D)
-            customerFeedback: structuredData.customerFeedback || '',
-            customerSentiment: structuredData.customerSentiment || '',
-            feedbackSummary: structuredData.feedbackSummary || '',
-            callSummary: structuredData.callSummary || message.artifact?.summary || '',
-            callback: structuredData.callback || false,
-            callbackSchedule: structuredData.callbackSchedule || '',
-            callbackAttempt: structuredData.callbackAttempt || 1,
-            duration: message.call?.startedAt && message.call?.endedAt
-              ? Math.round((new Date(message.call.endedAt) - new Date(message.call.startedAt)) / 1000)
-              : (message.startedAt && message.endedAt
-                ? Math.round((new Date(message.endedAt) - new Date(message.startedAt)) / 1000)
-                : (message.artifact?.duration || message.call?.duration || message.duration || 0)),
-            callDisposition: structuredData.callDisposition || '',
-            transcriptText: message.artifact?.transcript || message.call?.transcript || message.transcript || '',
-            stereoRecordingUrl: message.artifact?.stereoRecordingUrl || message.call?.stereoRecordingUrl || '',
-            vapiCallId: message.call?.id || message.callId || '',
-            endedReason: message.call?.endedReason || message.endedReason || ''
-          };
-
-          console.log('📤 Prepared call data:', callData);
-
-          // Route to campaign processor or single call handler
-          const campaignIdResolved = campaignIdFromVars || metadata.campaignId || batchId;
-          if (contactId && campaignIdResolved) {
-            // CAMPAIGN CALL - Route to campaign processor
-            console.log(`📦 Campaign call detected: Contact ${contactId}, Campaign ${campaignIdResolved}`);
-            await batchProcessor.handleCallComplete(contactId, callData);
-          } else {
-            // SINGLE CALL - Existing logic
+        // Route to campaign processor or single call handler
+        // NOTE: Always route campaign calls even when structured outputs are absent —
+        // determineDisposition() uses transcript keywords + endedReason as fallback
+        const campaignIdResolved = campaignIdFromVars || metadata.campaignId || batchId;
+        if (contactId && campaignIdResolved) {
+          // CAMPAIGN CALL - Route to campaign processor
+          console.log(`📦 Campaign call detected: Contact ${contactId}, Campaign ${campaignIdResolved}`);
+          await batchProcessor.handleCallComplete(contactId, callData);
+        } else {
+          // SINGLE CALL - only log to Google Sheets if we have structured outputs
+          if (outputs.length > 0) {
             console.log('📱 Single call - logging to Google Sheets');
-
-            // Log to Google Sheets
             try {
               await logToGoogleSheets(callData);
               console.log('✅ Successfully logged to Google Sheets from webhook');
             } catch (error) {
               console.error('❌ Error logging to Google Sheets from webhook:', error);
             }
-
-            // Emit to connected clients
-            io.emit('call-data-received', callData);
           }
+          io.emit('call-data-received', callData);
         }
         break;
 
