@@ -139,10 +139,14 @@ export function calculateNextRetry(outcome, currentTime = new Date(), customerRe
           ? parseISO(customerRequestedTime)
           : new Date(customerRequestedTime);
 
-        // Adjust to business hours if outside
-        if (!isBusinessHours(nextRetry)) {
-          nextRetry = getNextBusinessHour(nextRetry);
+        // If the requested time is in the past (already elapsed), default to 4 hours from now
+        if (nextRetry <= new Date(currentTime)) {
+          console.log(`⚠️  Callback time ${nextRetry.toISOString()} is in the past — defaulting to +4 hours`);
+          nextRetry = addHours(new Date(currentTime), 4);
         }
+
+        // Adjust to business hours if outside
+        nextRetry = getNextBusinessHour(nextRetry);
       } else {
         // Default to 4 hours from now if no specific time requested
         nextRetry = addHours(new Date(currentTime), 4);

@@ -5,6 +5,22 @@
   let allCalls = [];
   let activeCallId = null;
 
+  // Parse a SQLite datetime string (stored as UTC, no Z suffix) as UTC
+  function parseUTC(str) {
+    if (!str) return null;
+    // If already has timezone info, parse as-is
+    if (str.includes('Z') || str.includes('+') || str.match(/[+-]\d{2}:\d{2}$/)) {
+      return new Date(str);
+    }
+    // SQLite stores UTC without Z — append it
+    return new Date(str.replace(' ', 'T') + 'Z');
+  }
+
+  function fmtTime(str, opts) {
+    const d = parseUTC(str);
+    return d ? d.toLocaleString([], opts) : '—';
+  }
+
   // ── DOM refs ─────────────────────────────────────────────────────────────
   const filterCampaign = document.getElementById('filterCampaign');
   const filterFrom     = document.getElementById('filterFrom');
@@ -117,9 +133,7 @@
         const duration = call.duration_seconds
           ? `${Math.floor(call.duration_seconds / 60)}m ${call.duration_seconds % 60}s`
           : '—';
-        const time = call.call_time
-          ? new Date(call.call_time).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
-          : '—';
+        const time = fmtTime(call.call_time, { dateStyle: 'short', timeStyle: 'short' });
 
         row.innerHTML = `
           <div class="flex-1 min-w-0">
@@ -154,9 +168,7 @@
     document.getElementById('detailDuration').textContent = call.duration_seconds
       ? `${Math.floor(call.duration_seconds / 60)}m ${call.duration_seconds % 60}s`
       : '—';
-    document.getElementById('detailTime').textContent = call.call_time
-      ? new Date(call.call_time).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
-      : '—';
+    document.getElementById('detailTime').textContent = fmtTime(call.call_time, { dateStyle: 'medium', timeStyle: 'short' });
 
     const dispEl = document.getElementById('detailDisposition');
     dispEl.innerHTML = getDispositionBadge(call.call_disposition || call.call_status);
@@ -187,7 +199,7 @@
     if (call.callback_requested) {
       cbSection.classList.remove('hidden');
       document.getElementById('analysisCallbackTime').textContent = call.callback_schedule
-        ? new Date(call.callback_schedule).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })
+        ? fmtTime(call.callback_schedule, { dateStyle: 'medium', timeStyle: 'short' })
         : 'Requested';
     } else {
       cbSection.classList.add('hidden');
