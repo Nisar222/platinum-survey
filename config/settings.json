@@ -5,8 +5,9 @@
   "interCallDelaySeconds": 300,
   "maxAttemptsPerContact": 3,
   "businessHoursStart": 9,
-  "businessHoursEnd": 17,
-  "timezone": "United Arab Emirates/Dubai",
+  "businessHoursEnd": 18,
+  "timezone": "Asia/Dubai",
+  "workingDays": [0, 1, 2, 3, 4, 6],
   "noAnswerRetryDays": 1,
   "callbackRetryHours": 4
 }

@@ -920,6 +920,13 @@ function initializeCampaignManager() {
         const el = document.getElementById(`setting_${key}`);
         if (el && settings[key] !== undefined) el.value = settings[key];
       });
+
+      // Load working days checkboxes
+      if (Array.isArray(settings.workingDays)) {
+        document.querySelectorAll('.workday-cb').forEach(cb => {
+          cb.checked = settings.workingDays.includes(parseInt(cb.value));
+        });
+      }
     } catch (error) {
       console.error('Error loading settings:', error);
     }
@@ -938,7 +945,8 @@ function initializeCampaignManager() {
           businessHoursEnd: parseInt(document.getElementById('setting_businessHoursEnd').value),
           timezone: document.getElementById('setting_timezone').value,
           noAnswerRetryDays: parseFloat(document.getElementById('setting_noAnswerRetryDays').value),
-          callbackRetryHours: parseInt(document.getElementById('setting_callbackRetryHours').value)
+          callbackRetryHours: parseInt(document.getElementById('setting_callbackRetryHours').value),
+          workingDays: Array.from(document.querySelectorAll('.workday-cb:checked')).map(cb => parseInt(cb.value))
         };
 
         const response = await fetch('/api/settings', {

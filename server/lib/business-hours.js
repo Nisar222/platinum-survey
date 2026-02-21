@@ -8,8 +8,6 @@ import {
   addHours,
   setHours,
   setMinutes,
-  getDay,
-  isWeekend,
   format,
   parseISO
 } from 'date-fns';
@@ -25,6 +23,41 @@ const __dirname = path.dirname(__filename);
 const BUSINESS_HOURS_START = parseInt(process.env.BUSINESS_HOURS_START || '9');  // 9 AM
 const BUSINESS_HOURS_END = parseInt(process.env.BUSINESS_HOURS_END || '18');     // 6 PM
 const TIMEZONE = process.env.TIMEZONE || 'Asia/Dubai';
+
+// Load working days + retry hours from settings.json (re-read each call so changes take effect without restart)
+function getWorkingDays() {
+  try {
+    const settingsPath = path.join(__dirname, '../../config/settings.json');
+    const s = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    // workingDays is array of day numbers: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
+    if (Array.isArray(s.workingDays) && s.workingDays.length > 0) return s.workingDays;
+  } catch {}
+  // Default: Sun–Thu + Sat (UAE, skip Friday)
+  return [0, 1, 2, 3, 4, 6];
+}
+
+function getCallbackRetryHours() {
+  try {
+    const settingsPath = path.join(__dirname, '../../config/settings.json');
+    const s = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    if (s.callbackRetryHours) return parseInt(s.callbackRetryHours);
+  } catch {}
+  return 4;
+}
+
+function getNoAnswerRetryDays() {
+  try {
+    const settingsPath = path.join(__dirname, '../../config/settings.json');
+    const s = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    if (s.noAnswerRetryDays) return parseFloat(s.noAnswerRetryDays);
+  } catch {}
+  return 1;
+}
+
+function isWorkingDay(date) {
+  const workingDays = getWorkingDays();
+  return workingDays.includes(date.getDay());
+}
 
 // Load holidays from config file
 let holidays = [];
@@ -47,8 +80,8 @@ export function isBusinessHours(datetime) {
   const date = typeof datetime === 'string' ? parseISO(datetime) : datetime;
   const zonedDate = utcToZonedTime(date, TIMEZONE);
 
-  // Check if weekend
-  if (isWeekend(zonedDate)) {
+  // Check if non-working day
+  if (!isWorkingDay(zonedDate)) {
     return false;
   }
 
@@ -94,7 +127,7 @@ export function getNextBusinessHour(datetime) {
     const hour = zonedDate.getHours();
 
     // If before business hours today, move to start of business hours
-    if (hour < BUSINESS_HOURS_START && !isWeekend(zonedDate) && !isHoliday(zonedDate)) {
+    if (hour < BUSINESS_HOURS_START && isWorkingDay(zonedDate) && !isHoliday(zonedDate)) {
       zonedDate = setHours(setMinutes(zonedDate, 0), BUSINESS_HOURS_START);
       break;
     }
@@ -104,7 +137,7 @@ export function getNextBusinessHour(datetime) {
     zonedDate = setHours(setMinutes(zonedDate, 0), BUSINESS_HOURS_START);
 
     // Check if this day is valid
-    if (!isWeekend(zonedDate) && !isHoliday(zonedDate)) {
+    if (isWorkingDay(zonedDate) && !isHoliday(zonedDate)) {
       break;
     }
 
@@ -127,8 +160,8 @@ export function calculateNextRetry(outcome, currentTime = new Date(), customerRe
 
   switch (outcome) {
     case 'no_answer':
-      // Retry next business day at same time
-      nextRetry = addDays(new Date(currentTime), 1);
+      // Retry after configured number of days
+      nextRetry = addDays(new Date(currentTime), getNoAnswerRetryDays());
       nextRetry = getNextBusinessHour(nextRetry);
       break;
 
@@ -148,21 +181,21 @@ export function calculateNextRetry(outcome, currentTime = new Date(), customerRe
         // Adjust to business hours if outside
         nextRetry = getNextBusinessHour(nextRetry);
       } else {
-        // Default to 4 hours from now if no specific time requested
-        nextRetry = addHours(new Date(currentTime), 4);
+        // Default to configured callback retry hours
+        nextRetry = addHours(new Date(currentTime), getCallbackRetryHours());
         nextRetry = getNextBusinessHour(nextRetry);
       }
       break;
 
     case 'failed':
-      // Retry in 4 hours
-      nextRetry = addHours(new Date(currentTime), 4);
+      // Retry after configured callback retry hours
+      nextRetry = addHours(new Date(currentTime), getCallbackRetryHours());
       nextRetry = getNextBusinessHour(nextRetry);
       break;
 
     default:
       // Default: next business day
-      nextRetry = addDays(new Date(currentTime), 1);
+      nextRetry = addDays(new Date(currentTime), getNoAnswerRetryDays());
       nextRetry = getNextBusinessHour(nextRetry);
   }
 

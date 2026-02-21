@@ -300,7 +300,19 @@
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-gray-500 mb-1">Timezone</label>
-                            <input type="text" id="setting_timezone" placeholder="e.g. Australia/Sydney" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-400 outline-none">
+                            <input type="text" id="setting_timezone" placeholder="e.g. Asia/Dubai" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-400 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-500 mb-2">Working Days</label>
+                            <div class="flex gap-2 flex-wrap" id="setting_workingDays">
+                                <label class="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer"><input type="checkbox" value="0" class="workday-cb accent-blue-500"> Sun</label>
+                                <label class="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer"><input type="checkbox" value="1" class="workday-cb accent-blue-500"> Mon</label>
+                                <label class="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer"><input type="checkbox" value="2" class="workday-cb accent-blue-500"> Tue</label>
+                                <label class="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer"><input type="checkbox" value="3" class="workday-cb accent-blue-500"> Wed</label>
+                                <label class="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer"><input type="checkbox" value="4" class="workday-cb accent-blue-500"> Thu</label>
+                                <label class="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer"><input type="checkbox" value="5" class="workday-cb accent-blue-500"> Fri</label>
+                                <label class="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer"><input type="checkbox" value="6" class="workday-cb accent-blue-500"> Sat</label>
+                            </div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div>
