@@ -3,6 +3,13 @@
  * Handles campaign upload, display, funnel charts, and real-time progress updates
  */
 
+// Parse SQLite UTC timestamps correctly (stored without 'Z' suffix)
+function parseUTC(str) {
+  if (!str) return null;
+  if (str.includes('Z') || str.includes('+') || str.match(/[+-]\d{2}:\d{2}$/)) return new Date(str);
+  return new Date(str.replace(' ', 'T') + 'Z');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   console.log('📦 Campaign Manager initialized');
   initializeCampaignManager();
@@ -256,7 +263,7 @@ function initializeCampaignManager() {
       <div class="flex justify-between items-start mb-3">
         <div class="flex-1 min-w-0 mr-3">
           <h3 class="text-base font-bold text-gray-900 truncate">${campaign.name}</h3>
-          <p class="text-xs text-gray-400 mt-0.5">${new Date(campaign.created_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+          <p class="text-xs text-gray-400 mt-0.5">${parseUTC(campaign.created_at)?.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) || '—'}</p>
         </div>
         ${statusBadge}
       </div>
@@ -589,13 +596,13 @@ function initializeCampaignManager() {
       list.innerHTML = '';
       callbacks.forEach(cb => {
         const card = document.createElement('div');
-        const isDue = cb.next_retry_at && new Date(cb.next_retry_at) <= new Date();
+        const isDue = cb.next_retry_at && parseUTC(cb.next_retry_at) <= new Date();
         const retryTime = cb.next_retry_at
-          ? new Date(cb.next_retry_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+          ? parseUTC(cb.next_retry_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
           : 'ASAP';
 
         const lastCallTime = cb.last_call_at
-          ? new Date(cb.last_call_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
+          ? parseUTC(cb.last_call_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
           : '—';
         const isCallback = cb.status === 'callback_requested';
 
@@ -1044,7 +1051,7 @@ function initializeCampaignManager() {
           const tr = document.createElement('tr');
           tr.className = 'hover:bg-gray-50';
           const dur = call.duration_seconds ? `${Math.floor(call.duration_seconds / 60)}m ${call.duration_seconds % 60}s` : '—';
-          const time = call.call_time ? new Date(call.call_time).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '—';
+          const time = call.call_time ? parseUTC(call.call_time).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : '—';
           tr.innerHTML = `
             <td class="px-3 py-2 font-medium text-gray-800">${call.customer_name || '—'}</td>
             <td class="px-3 py-2 text-gray-500">${call.campaign_name || '—'}</td>
