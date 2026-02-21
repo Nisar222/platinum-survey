@@ -648,18 +648,42 @@ class CampaignProcessor {
       return { status: 'callback_requested', disposition: 'callback_requested', needsRetry: true, retryType: 'callback_requested' };
     }
 
-    if (callData.transcriptText && Number(callData.duration) > 0) {
-      return { status: 'completed', disposition: 'completed', needsRetry: false };
+    // Transcript keyword fallback — when structured output is missing, scan the transcript
+    // This handles cases where the call ended before the AI could record structured fields
+    const transcript = (callData.transcriptText || '').toLowerCase();
+    if (transcript.length > 0) {
+      const callbackKeywords = [
+        'call me back', 'call back', 'callback', 'call you back',
+        'not a good time', 'bad time', 'busy', 'later',
+        'twenty minutes', 'thirty minutes', 'an hour', 'tomorrow',
+        'reschedule', 'another time', 'some other time'
+      ];
+      const completedKeywords = [
+        'rate', 'rating', 'out of ten', 'out of 10', 'score',
+        'thank you for your feedback', 'have a wonderful day', 'goodbye'
+      ];
+      if (callbackKeywords.some(kw => transcript.includes(kw))) {
+        console.log(`📋 Transcript keyword detected: callback_requested`);
+        return { status: 'callback_requested', disposition: 'callback_requested', needsRetry: true, retryType: 'callback_requested' };
+      }
+      if (completedKeywords.some(kw => transcript.includes(kw))) {
+        console.log(`📋 Transcript keyword detected: completed`);
+        return { status: 'completed', disposition: 'completed', needsRetry: false };
+      }
+      // Has a real transcript (customer was reached) but no clear signal — treat as callback
+      if (transcript.includes('user:') || transcript.includes('\nuser')) {
+        console.log(`📋 Customer responded but no structured output — treating as callback`);
+        return { status: 'callback_requested', disposition: 'callback_requested', needsRetry: true, retryType: 'callback_requested' };
+      }
     }
 
-    // assistant-ended-call means assistant terminated the call (e.g. no response from customer)
-    // This is a no_answer — do not treat as a technical failure
+    // assistant-ended-call means assistant terminated (e.g. no response from customer)
     const endedReason = (callData.endedReason || '').toLowerCase();
     if (endedReason === 'assistant-ended-call' || endedReason === 'assistant_ended_call') {
       return { status: 'no_answer', disposition: 'no_answer', needsRetry: true, retryType: 'no_answer' };
     }
 
-    // customer-ended-call with no data = hung up without completing
+    // customer-ended-call with no transcript = hung up immediately
     if (endedReason === 'customer-ended-call' || endedReason === 'customer_ended_call') {
       return { status: 'no_answer', disposition: 'no_answer', needsRetry: true, retryType: 'no_answer' };
     }
