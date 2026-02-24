@@ -455,7 +455,7 @@ router.get('/callbacks/pending', (req, res) => {
     const db = getDatabase();
 
     const callbacks = db.prepare(`
-      SELECT c.*, camp.name as campaign_name
+      SELECT c.*, camp.name as campaign_name, camp.status as campaign_status
       FROM contacts c
       JOIN campaigns camp ON c.campaign_id = camp.id
       WHERE c.status IN ('no_answer', 'callback_requested')

@@ -605,8 +605,9 @@ function initializeCampaignManager() {
           ? parseUTC(cb.last_call_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })
           : '—';
         const isCallback = cb.status === 'callback_requested';
+        const isPaused = cb.campaign_status === 'paused';
 
-        card.className = `p-3 rounded-xl border ${isDue ? 'bg-yellow-50 border-yellow-300' : 'bg-gray-50 border-gray-200'}`;
+        card.className = `p-3 rounded-xl border ${isPaused ? 'bg-orange-50 border-orange-200' : isDue ? 'bg-yellow-50 border-yellow-300' : 'bg-gray-50 border-gray-200'}`;
         card.innerHTML = `
           <div class="flex justify-between items-start">
             <div>
@@ -616,9 +617,10 @@ function initializeCampaignManager() {
               <div class="text-xs text-gray-400 mt-1">Called: ${lastCallTime}</div>
             </div>
             <div class="text-right">
-              <div class="text-xs font-semibold ${isDue ? 'text-yellow-700' : 'text-gray-600'}">${isDue ? '⚡ Due Now' : '🕐 ' + retryTime}</div>
+              <div class="text-xs font-semibold ${isDue && !isPaused ? 'text-yellow-700' : 'text-gray-600'}">${isDue && !isPaused ? '⚡ Due Now' : '🕐 ' + retryTime}</div>
               <div class="text-xs text-gray-400 mt-0.5">Attempt ${cb.attempt_count}/${cb.max_attempts}</div>
               <div class="text-xs mt-0.5 ${isCallback ? 'text-blue-600' : 'text-gray-400'}">${isCallback ? '📞 Callback Requested' : '🔄 No Answer'}</div>
+              ${isPaused ? '<div class="text-xs font-semibold text-orange-500 mt-0.5">⏸ Campaign Paused</div>' : ''}
             </div>
           </div>
         `;
