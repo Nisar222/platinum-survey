@@ -98,8 +98,10 @@ class CampaignProcessor {
   async resume(campaignId) {
     const db = getDatabase();
 
-    // Guard: prevent two concurrent processQueue loops for the same campaign
-    if (this.activeCampaigns.has(campaignId)) {
+    // Guard: prevent two concurrent processQueue loops for the same campaign.
+    // A paused campaign stays in activeCampaigns with status='paused' — allow resume for those.
+    const existing = this.activeCampaigns.get(campaignId);
+    if (existing && existing.status === 'running') {
       console.log(`⏭️  Campaign ${campaignId} already has an active queue loop — skipping duplicate resume`);
       return;
     }
