@@ -39,6 +39,7 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../public')));
+app.use('/recordings', express.static('/var/data/platinum-survey/recordings'));
 
 // Rate limiting — 200 requests per minute per IP for API routes
 const apiLimiter = rateLimit({
