@@ -62,7 +62,7 @@ class RetryScheduler {
           AND co.attempt_count < co.max_attempts
           AND co.next_retry_at IS NOT NULL
           AND datetime(co.next_retry_at) <= datetime('now')
-          AND c.status NOT IN ('cancelled', 'archived')
+          AND c.status NOT IN ('cancelled', 'archived', 'paused')
       `).all();
 
       if (campaignsWithDueRetries.length === 0) {
