@@ -109,7 +109,14 @@
 
     callGroups.innerHTML = '';
 
-    Object.entries(groups).forEach(([campaignId, group]) => {
+    // Sort groups so the campaign with the most recent call appears first
+    const sortedGroups = Object.entries(groups).sort((a, b) => {
+      const aTime = a[1].calls[0]?.call_time || '';
+      const bTime = b[1].calls[0]?.call_time || '';
+      return bTime.localeCompare(aTime);
+    });
+
+    sortedGroups.forEach(([campaignId, group]) => {
       const section = document.createElement('div');
       section.className = 'bg-white rounded-2xl border border-gray-100 overflow-hidden';
 
