@@ -7,7 +7,7 @@ import express from 'express';
 import multer from 'multer';
 import xlsx from 'xlsx';
 import { getDatabase } from '../db/database.js';
-import { getUtcOffsetString } from '../lib/business-hours.js';
+import { toLocalTimestamp } from '../lib/business-hours.js';
 import path from 'path';
 import { readFileSync } from 'fs';
 
@@ -338,11 +338,10 @@ router.get('/reports/calls', (req, res) => {
     const fromDate = `${from} 00:00:00`;
     const toDate = `${to} 23:59:59`;
 
-    const tzOffset = getUtcOffsetString();
     let query = `
       SELECT
         cl.id,
-        datetime(cl.created_at, '${tzOffset}') as call_time,
+        cl.created_at as call_time,
         co.customer_name,
         co.phone_number,
         camp.name as campaign_name,
@@ -394,7 +393,7 @@ router.get('/reports/calls', (req, res) => {
       };
 
       const rows = calls.map(c => [
-        c.call_time, c.customer_name, c.phone_number, c.campaign_name,
+        toLocalTimestamp(c.call_time), c.customer_name, c.phone_number, c.campaign_name,
         getDisplayStatus(c.call_status), c.call_status, c.call_disposition, c.duration_seconds, c.rating,
         c.customer_feedback, c.customer_sentiment, c.call_summary,
         c.callback_requested ? 'Yes' : 'No', c.callback_schedule,
@@ -876,7 +875,6 @@ router.get('/:id/export', (req, res) => {
       return res.status(404).json({ error: 'Campaign not found' });
     }
 
-    const exportTzOffset = getUtcOffsetString();
     const contacts = db.prepare(`
       SELECT
         co.customer_name,
@@ -885,8 +883,8 @@ router.get('/:id/export', (req, res) => {
         co.call_disposition,
         co.attempt_count,
         co.max_attempts,
-        datetime(co.last_call_at, '${exportTzOffset}') as last_call_at,
-        datetime(co.next_retry_at, '${exportTzOffset}') as next_retry_at,
+        co.last_call_at,
+        co.next_retry_at,
         cl.rating,
         cl.customer_feedback,
         cl.customer_sentiment,
@@ -896,7 +894,7 @@ router.get('/:id/export', (req, res) => {
         cl.callback_schedule,
         cl.recording_url,
         cl.ended_reason,
-        datetime(cl.created_at, '${exportTzOffset}') as call_time
+        cl.created_at as call_time
       FROM contacts co
       LEFT JOIN call_logs cl ON co.id = cl.contact_id
         AND cl.id = (SELECT MAX(id) FROM call_logs WHERE contact_id = co.id)
@@ -930,8 +928,8 @@ router.get('/:id/export', (req, res) => {
       c.call_disposition,
       c.attempt_count,
       c.max_attempts,
-      c.last_call_at,
-      c.next_retry_at,
+      toLocalTimestamp(c.last_call_at),
+      toLocalTimestamp(c.next_retry_at),
       c.rating,
       c.customer_feedback,
       c.customer_sentiment,
@@ -941,7 +939,7 @@ router.get('/:id/export', (req, res) => {
       c.callback_schedule,
       c.recording_url,
       c.ended_reason,
-      c.call_time
+      toLocalTimestamp(c.call_time)
     ].map(escape).join(','));
 
     const csv = [headers.join(','), ...rows].join('\n');

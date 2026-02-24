@@ -13,7 +13,7 @@ import {
   format,
   parseISO
 } from 'date-fns';
-import { zonedTimeToUtc, utcToZonedTime } from 'date-fns-tz';
+import { zonedTimeToUtc, utcToZonedTime, format as formatTz } from 'date-fns-tz';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -36,25 +36,20 @@ function getTimezone() {
 }
 
 /**
- * Derive the UTC offset in whole hours for a given IANA timezone.
- * Returns a SQLite-compatible offset string like '+4 hours' or '-5 hours'.
- * Uses the current wall-clock time so DST is accounted for.
+ * Convert a UTC timestamp string (as stored in SQLite) to a local time string
+ * in the configured timezone. Uses date-fns-tz for correct half-hour zone support.
+ * @param {string|null} utcStr - UTC datetime string e.g. "2026-02-24 08:37:57"
+ * @param {string} [timezone] - IANA timezone, defaults to configured timezone
+ * @returns {string} Local time formatted as "yyyy-MM-dd HH:mm:ss", or '' if null
  */
-export function getUtcOffsetString(timezone) {
+export function toLocalTimestamp(utcStr, timezone) {
+  if (!utcStr) return '';
   const tz = timezone || getTimezone();
-  // Format a date in the target timezone and compare to UTC
-  const now = new Date();
-  const localStr = now.toLocaleString('en-US', { timeZone: tz, hour12: false,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  const utcStr = now.toLocaleString('en-US', { timeZone: 'UTC', hour12: false,
-    year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  const localDate = new Date(localStr);
-  const utcDate = new Date(utcStr);
-  const offsetHours = Math.round((localDate - utcDate) / (1000 * 60 * 60));
-  const sign = offsetHours >= 0 ? '+' : '-';
-  return `${sign}${Math.abs(offsetHours)} hours`;
+  // SQLite stores without 'Z' — append it so JS parses as UTC
+  const utcDate = new Date(utcStr.includes('T') ? utcStr : utcStr.replace(' ', 'T') + 'Z');
+  if (isNaN(utcDate.getTime())) return '';
+  const zoned = utcToZonedTime(utcDate, tz);
+  return formatTz(zoned, 'yyyy-MM-dd HH:mm:ss', { timeZone: tz });
 }
 
 
@@ -66,8 +61,8 @@ function getWorkingDays() {
     // workingDays is array of day numbers: 0=Sun, 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat
     if (Array.isArray(s.workingDays) && s.workingDays.length > 0) return s.workingDays;
   } catch {}
-  // Default: Sun–Thu + Sat (UAE, skip Friday)
-  return [0, 1, 2, 3, 4, 6];
+  // Default: Mon–Sat (UAE post-2022 calendar)
+  return [1, 2, 3, 4, 5, 6];
 }
 
 function getCallbackRetryHours() {
@@ -149,8 +144,8 @@ export function getNextBusinessHour(datetime) {
   let date = typeof datetime === 'string' ? parseISO(datetime) : new Date(datetime);
   let zonedDate = utcToZonedTime(date, tz);
 
-  // If we're already in business hours, return as-is
-  if (isBusinessHours(zonedDate)) {
+  // If we're already in business hours, return as-is (pass UTC date — isBusinessHours zones it internally)
+  if (isBusinessHours(date)) {
     return date;
   }
 
@@ -207,10 +202,14 @@ export function calculateNextRetry(outcome, currentTime = new Date(), customerRe
           ? parseISO(customerRequestedTime)
           : new Date(customerRequestedTime);
 
-        // If the requested time is in the past (already elapsed), default to 4 hours from now
-        if (nextRetry <= new Date(currentTime)) {
-          console.log(`⚠️  Callback time ${nextRetry.toISOString()} is in the past — defaulting to +4 hours`);
-          nextRetry = addHours(new Date(currentTime), 4);
+        // Guard: parseISO returns Invalid Date for non-ISO strings (e.g. "tomorrow morning")
+        const isValidDate = !isNaN(nextRetry.getTime());
+
+        // If invalid or in the past, fall back to default retry hours
+        if (!isValidDate || nextRetry <= new Date(currentTime)) {
+          if (!isValidDate) console.log(`⚠️  Callback time "${customerRequestedTime}" is not a valid ISO date — defaulting to +${getCallbackRetryHours()} hours`);
+          else console.log(`⚠️  Callback time ${nextRetry.toISOString()} is in the past — defaulting to +${getCallbackRetryHours()} hours`);
+          nextRetry = addHours(new Date(currentTime), getCallbackRetryHours());
         }
 
         // Adjust to business hours if outside
@@ -264,7 +263,7 @@ export default {
   getRandomDelay,
   isCurrentlyBusinessHours,
   getTimezone,
-  getUtcOffsetString,
+  toLocalTimestamp,
   BUSINESS_HOURS_START,
   BUSINESS_HOURS_END,
 };
