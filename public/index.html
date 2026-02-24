@@ -300,7 +300,23 @@
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-gray-500 mb-1">Timezone</label>
-                            <input type="text" id="setting_timezone" placeholder="e.g. Asia/Dubai" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-400 outline-none">
+                            <select id="setting_timezone" class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:border-blue-400 outline-none bg-white">
+                                <option value="Asia/Dubai">Asia/Dubai (GST, UTC+4)</option>
+                                <option value="Asia/Riyadh">Asia/Riyadh (AST, UTC+3)</option>
+                                <option value="Asia/Kuwait">Asia/Kuwait (AST, UTC+3)</option>
+                                <option value="Asia/Qatar">Asia/Qatar (AST, UTC+3)</option>
+                                <option value="Asia/Bahrain">Asia/Bahrain (AST, UTC+3)</option>
+                                <option value="Asia/Muscat">Asia/Muscat (GST, UTC+4)</option>
+                                <option value="Asia/Karachi">Asia/Karachi (PKT, UTC+5)</option>
+                                <option value="Asia/Kolkata">Asia/Kolkata (IST, UTC+5:30)</option>
+                                <option value="Asia/Singapore">Asia/Singapore (SGT, UTC+8)</option>
+                                <option value="Europe/London">Europe/London (GMT/BST)</option>
+                                <option value="Europe/Paris">Europe/Paris (CET/CEST, UTC+1/+2)</option>
+                                <option value="America/New_York">America/New_York (EST/EDT)</option>
+                                <option value="America/Chicago">America/Chicago (CST/CDT)</option>
+                                <option value="America/Los_Angeles">America/Los_Angeles (PST/PDT)</option>
+                                <option value="UTC">UTC</option>
+                            </select>
                         </div>
                         <div>
                             <label class="block text-xs font-semibold text-gray-500 mb-2">Working Days</label>

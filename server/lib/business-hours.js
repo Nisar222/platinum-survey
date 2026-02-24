@@ -24,7 +24,39 @@ const __dirname = path.dirname(__filename);
 // Configuration
 const BUSINESS_HOURS_START = parseInt(process.env.BUSINESS_HOURS_START || '9');  // 9 AM
 const BUSINESS_HOURS_END = parseInt(process.env.BUSINESS_HOURS_END || '18');     // 6 PM
-const TIMEZONE = process.env.TIMEZONE || 'Asia/Dubai';
+
+// Read timezone dynamically from settings.json so changes take effect without restart
+function getTimezone() {
+  try {
+    const settingsPath = path.join(__dirname, '../../config/settings.json');
+    const s = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+    if (s.timezone) return s.timezone;
+  } catch {}
+  return process.env.TIMEZONE || 'Asia/Dubai';
+}
+
+/**
+ * Derive the UTC offset in whole hours for a given IANA timezone.
+ * Returns a SQLite-compatible offset string like '+4 hours' or '-5 hours'.
+ * Uses the current wall-clock time so DST is accounted for.
+ */
+export function getUtcOffsetString(timezone) {
+  const tz = timezone || getTimezone();
+  // Format a date in the target timezone and compare to UTC
+  const now = new Date();
+  const localStr = now.toLocaleString('en-US', { timeZone: tz, hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const utcStr = now.toLocaleString('en-US', { timeZone: 'UTC', hour12: false,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const localDate = new Date(localStr);
+  const utcDate = new Date(utcStr);
+  const offsetHours = Math.round((localDate - utcDate) / (1000 * 60 * 60));
+  const sign = offsetHours >= 0 ? '+' : '-';
+  return `${sign}${Math.abs(offsetHours)} hours`;
+}
+
 
 // Load working days + retry hours from settings.json (re-read each call so changes take effect without restart)
 function getWorkingDays() {
@@ -80,7 +112,7 @@ try {
  */
 export function isBusinessHours(datetime) {
   const date = typeof datetime === 'string' ? parseISO(datetime) : datetime;
-  const zonedDate = utcToZonedTime(date, TIMEZONE);
+  const zonedDate = utcToZonedTime(date, getTimezone());
 
   // Check if non-working day
   if (!isWorkingDay(zonedDate)) {
@@ -113,8 +145,9 @@ export function isHoliday(date) {
  * @returns {Date} Next available business hour
  */
 export function getNextBusinessHour(datetime) {
+  const tz = getTimezone();
   let date = typeof datetime === 'string' ? parseISO(datetime) : new Date(datetime);
-  let zonedDate = utcToZonedTime(date, TIMEZONE);
+  let zonedDate = utcToZonedTime(date, tz);
 
   // If we're already in business hours, return as-is
   if (isBusinessHours(zonedDate)) {
@@ -147,7 +180,7 @@ export function getNextBusinessHour(datetime) {
   }
 
   // Convert back to UTC
-  return zonedTimeToUtc(zonedDate, TIMEZONE);
+  return zonedTimeToUtc(zonedDate, tz);
 }
 
 /**
@@ -230,7 +263,8 @@ export default {
   calculateNextRetry,
   getRandomDelay,
   isCurrentlyBusinessHours,
+  getTimezone,
+  getUtcOffsetString,
   BUSINESS_HOURS_START,
   BUSINESS_HOURS_END,
-  TIMEZONE
 };
