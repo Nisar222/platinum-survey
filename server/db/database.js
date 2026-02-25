@@ -54,6 +54,10 @@ function runMigrations(db) {
   addColumnIfMissing('call_logs', 'ended_reason', 'TEXT');
   addColumnIfMissing('call_logs', 'feedback_summary', 'TEXT');
   addColumnIfMissing('call_logs', 'call_summary', 'TEXT');
+  addColumnIfMissing('call_logs', 'escalation_required', 'INTEGER DEFAULT 0');
+
+  // contacts table — escalation flag for quick lookup
+  addColumnIfMissing('contacts', 'escalation_required', 'INTEGER DEFAULT 0');
 }
 
 /**

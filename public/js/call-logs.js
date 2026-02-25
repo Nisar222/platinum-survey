@@ -147,7 +147,10 @@
             <div class="font-medium text-gray-800 text-xs truncate">${call.customer_name || '—'}</div>
             <div class="text-xs text-gray-400 mt-0.5 truncate">${time} · ${duration}</div>
           </div>
-          <div>${getDispositionBadge(call.call_disposition || call.call_status)}</div>
+          <div class="flex items-center gap-1 flex-shrink-0">
+            ${call.escalation_required ? '<span class="px-1.5 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white whitespace-nowrap">ESC</span>' : ''}
+            ${getDispositionBadge(call.call_disposition || call.call_status)}
+          </div>
         `;
 
         row.addEventListener('click', () => openDetail(call));
@@ -180,6 +183,15 @@
     const dispEl = document.getElementById('detailDisposition');
     dispEl.innerHTML = getDispositionBadge(call.call_disposition || call.call_status);
 
+    const escEl = document.getElementById('detailEscalation');
+    if (call.escalation_required) {
+      escEl.innerHTML = '<span class="px-2 py-0.5 rounded-full text-xs font-bold bg-red-500 text-white">Escalation Required</span>';
+      escEl.classList.remove('hidden');
+    } else {
+      escEl.innerHTML = '';
+      escEl.classList.add('hidden');
+    }
+
     // Audio player
     const audioSection = document.getElementById('audioSection');
     const audioPlayer  = document.getElementById('audioPlayer');
@@ -210,6 +222,13 @@
         : 'Requested';
     } else {
       cbSection.classList.add('hidden');
+    }
+
+    const escSection = document.getElementById('analysisEscalationSection');
+    if (call.escalation_required) {
+      escSection.classList.remove('hidden');
+    } else {
+      escSection.classList.add('hidden');
     }
 
     // Switch to transcript tab

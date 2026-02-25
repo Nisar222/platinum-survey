@@ -1,5 +1,5 @@
 {
-  "phoneNumberId": "51df639c-77e9-418a-92f2-90fbeb2ddccd",
+  "phoneNumberId": "fb410d46-82f7-4adf-b088-22594fd4e91f",
   "assistantId": "",
   "maxConcurrentCalls": 5,
   "interCallDelaySeconds": 300,
@@ -7,7 +7,14 @@
   "businessHoursStart": 9,
   "businessHoursEnd": 18,
   "timezone": "Asia/Dubai",
-  "workingDays": [1, 2, 3, 4, 5, 6],
+  "workingDays": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
   "noAnswerRetryDays": 1,
   "callbackRetryHours": 4
 }

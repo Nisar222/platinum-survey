@@ -6,6 +6,7 @@
 
 import { getDatabase } from '../db/database.js';
 import { calculateNextRetry } from './business-hours.js';
+import { sendEscalationAlert } from './alerting.js';
 import fetch from 'node-fetch';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
@@ -586,6 +587,8 @@ class CampaignProcessor {
 
       this.updateCampaignStats(campaignId);
 
+      const escalation = callData.escalationRequired ? 1 : 0;
+
       db.prepare(`
         INSERT INTO call_logs (
           contact_id, batch_id, campaign_id, vapi_call_id, attempt_number,
@@ -593,8 +596,8 @@ class CampaignProcessor {
           callback_requested, callback_schedule, rating,
           customer_feedback, customer_sentiment, feedback_summary,
           call_summary, transcript_text, recording_url,
-          ended_reason, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+          ended_reason, escalation_required, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
       `).run(
         contactId,
         campaignId,
@@ -613,8 +616,23 @@ class CampaignProcessor {
         callData.callSummary || null,
         callData.transcriptText || null,
         callData.stereoRecordingUrl || null,
-        callData.endedReason || null
+        callData.endedReason || null,
+        escalation
       );
+
+      // Also stamp the contacts row for quick dashboard lookup, and fire an alert
+      if (escalation) {
+        db.prepare(`UPDATE contacts SET escalation_required = 1 WHERE id = ?`).run(contactId);
+        sendEscalationAlert({
+          customerName: contact.customer_name,
+          phoneNumber: contact.phone_number,
+          campaignName: this.getCampaignName(campaignId),
+          rating: callData.rating,
+          customerSentiment: callData.customerSentiment,
+          callDisposition: callData.callDisposition,
+          callSummary: callData.callSummary,
+        }).catch(err => console.error('❌ Failed to send escalation alert:', err.message));
+      }
 
       await this.logToGoogleSheets({
         ...callData,

@@ -112,4 +112,25 @@ export async function checkSSLExpiry() {
   }
 }
 
-export default { sendCrashAlert, sendVAPIErrorAlert, checkSSLExpiry };
+// Alert when a call is flagged for escalation
+export function sendEscalationAlert(callData) {
+  const body = [
+    `Time: ${new Date().toISOString()}`,
+    ``,
+    `A call has been flagged for escalation to a supervisor or specialist.`,
+    ``,
+    `Customer Name:  ${callData.customerName || '—'}`,
+    `Phone Number:   ${callData.phoneNumber || '—'}`,
+    `Campaign:       ${callData.campaignName || '—'}`,
+    `Rating:         ${callData.rating || '—'}`,
+    `Sentiment:      ${callData.customerSentiment || '—'}`,
+    `Disposition:    ${callData.callDisposition || '—'}`,
+    `Call Summary:   ${callData.callSummary || '—'}`,
+    ``,
+    `Please follow up with this customer as soon as possible.`
+  ].join('\n');
+
+  return sendAlert('🔴 Escalation Required — Customer Follow-Up Needed', body);
+}
+
+export default { sendCrashAlert, sendVAPIErrorAlert, checkSSLExpiry, sendEscalationAlert };

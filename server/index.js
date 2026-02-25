@@ -469,6 +469,7 @@ const handleCallWebhook = async (req, res) => {
           callback: getByName('Callback') ?? false,
           callbackSchedule: getByName('Callback Schedule'),
           callbackAttempt: getByName('Callback Attempt'),
+          escalationRequired: getByName('Escalation Required') ?? false,
         };
 
         // Prepare call data
@@ -494,6 +495,7 @@ const handleCallWebhook = async (req, res) => {
             ? Math.round((new Date(message.call.endedAt) - new Date(message.call.startedAt)) / 1000)
             : (message.artifact?.duration || message.call?.duration || message.duration || 0),
           callDisposition: structuredData.callDisposition || '',
+          escalationRequired: structuredData.escalationRequired || false,
           transcriptText: message.artifact?.transcript || message.call?.transcript || message.transcript || '',
           stereoRecordingUrl: message.artifact?.stereoRecordingUrl || message.call?.stereoRecordingUrl || '',
           vapiCallId: message.call?.id || message.callId || '',
@@ -564,7 +566,7 @@ app.post('/api/webhook/calls', handleCallWebhook);
 // Helper function to log to Google Sheets (extracted for reuse)
 async function logToGoogleSheets(callData) {
   const SPREADSHEET_ID = process.env.GOOGLE_SPREADSHEET_ID || '1z5fKe8zY3J2c6Z1xtC7mY2gMmS2PbUwjvKDcCI0lhio';
-  const RANGE = 'Sheet1!A1:R'; // Columns A through R (18 columns)
+  const RANGE = 'Sheet1!A1:S'; // Columns A through S (19 columns)
 
   const auth = new google.auth.GoogleAuth({
     credentials: JSON.parse(process.env.GOOGLE_CREDENTIALS || '{}'),
@@ -592,7 +594,8 @@ async function logToGoogleSheets(callData) {
     callData.campaignName || callData.batchName || '',  // O: Campaign Name
     callData.callStatus || '',                          // P: Call Status
     callData.callDisposition || '',                     // Q: Call Disposition (text)
-    callData.endedReason || ''                          // R: Ended Reason
+    callData.endedReason || '',                         // R: Ended Reason
+    callData.escalationRequired ? 'TRUE' : 'FALSE'     // S: Escalation Required
   ];
 
   await sheets.spreadsheets.values.append({

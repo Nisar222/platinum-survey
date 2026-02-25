@@ -358,7 +358,8 @@ router.get('/reports/calls', (req, res) => {
         cl.recording_url,
         cl.transcript_text,
         cl.attempt_number,
-        cl.campaign_id
+        cl.campaign_id,
+        cl.escalation_required
       FROM call_logs cl
       JOIN contacts co ON cl.contact_id = co.id
       LEFT JOIN campaigns camp ON cl.campaign_id = camp.id
@@ -378,9 +379,9 @@ router.get('/reports/calls', (req, res) => {
       const headers = [
         'Call Time', 'Customer Name', 'Phone Number', 'Campaign',
         'Call Result', 'Status', 'Disposition', 'Duration (s)', 'Rating',
-        'Feedback', 'Sentiment', 'Call Summary',
+        'Sentiment', 'Call Summary',
         'Callback Requested', 'Callback Schedule', 'Ended Reason',
-        'Recording URL', 'Attempt #'
+        'Recording URL', 'Attempt #', 'Escalation Required'
       ];
 
       const escape = (v) => {
@@ -395,9 +396,10 @@ router.get('/reports/calls', (req, res) => {
       const rows = calls.map(c => [
         toLocalTimestamp(c.call_time), c.customer_name, c.phone_number, c.campaign_name,
         getDisplayStatus(c.call_status), c.call_status, c.call_disposition, c.duration_seconds, c.rating,
-        c.customer_feedback, c.customer_sentiment, c.call_summary,
+        c.customer_sentiment, c.call_summary,
         c.callback_requested ? 'Yes' : 'No', c.callback_schedule,
-        c.ended_reason, c.recording_url, c.attempt_number
+        c.ended_reason, c.recording_url, c.attempt_number,
+        c.escalation_required ? 'Yes' : 'No'
       ].map(escape).join(','));
 
       const csv = [headers.join(','), ...rows].join('\n');
@@ -886,7 +888,6 @@ router.get('/:id/export', (req, res) => {
         co.last_call_at,
         co.next_retry_at,
         cl.rating,
-        cl.customer_feedback,
         cl.customer_sentiment,
         cl.call_summary,
         cl.duration_seconds,
@@ -894,6 +895,7 @@ router.get('/:id/export', (req, res) => {
         cl.callback_schedule,
         cl.recording_url,
         cl.ended_reason,
+        cl.escalation_required,
         cl.created_at as call_time
       FROM contacts co
       LEFT JOIN call_logs cl ON co.id = cl.contact_id
@@ -906,9 +908,9 @@ router.get('/:id/export', (req, res) => {
     const headers = [
       'Customer Name', 'Phone Number', 'Call Result', 'Status', 'Call Disposition',
       'Attempts', 'Max Attempts', 'Last Called', 'Next Retry',
-      'Rating', 'Feedback', 'Sentiment', 'Call Summary',
+      'Rating', 'Sentiment', 'Call Summary',
       'Duration (s)', 'Callback Requested', 'Callback Schedule',
-      'Recording URL', 'Ended Reason', 'Call Time'
+      'Recording URL', 'Ended Reason', 'Escalation Required', 'Call Time'
     ];
 
     const escape = (v) => {
@@ -931,7 +933,6 @@ router.get('/:id/export', (req, res) => {
       toLocalTimestamp(c.last_call_at),
       toLocalTimestamp(c.next_retry_at),
       c.rating,
-      c.customer_feedback,
       c.customer_sentiment,
       c.call_summary,
       c.duration_seconds,
@@ -939,6 +940,7 @@ router.get('/:id/export', (req, res) => {
       c.callback_schedule,
       c.recording_url,
       c.ended_reason,
+      c.escalation_required ? 'Yes' : 'No',
       toLocalTimestamp(c.call_time)
     ].map(escape).join(','));
 
