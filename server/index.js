@@ -430,10 +430,25 @@ const handleCallWebhook = async (req, res) => {
         };
 
         const outputs = flattenStructured(message.artifact?.structuredOutputs);
-        const getByName = (name) =>
-          outputs.find(
+
+        // If a structured output result is an object (e.g. {sentiment: "...", sentimentReason: "..."})
+        // flatten it to a readable string so it can be stored in DB/Sheets as plain text
+        const flattenResult = (val) => {
+          if (val === null || val === undefined) return val;
+          if (typeof val !== 'object') return val;
+          // Pick the most meaningful single field if it exists, otherwise JSON
+          if (val.sentiment !== undefined) return val.sentiment;
+          if (val.summary !== undefined) return val.summary;
+          if (val.disposition !== undefined) return val.disposition;
+          return Object.values(val).filter(v => typeof v === 'string').join(' — ') || JSON.stringify(val);
+        };
+
+        const getByName = (name) => {
+          const result = outputs.find(
             (o) => o.name?.toLowerCase() === name.toLowerCase()
           )?.result;
+          return flattenResult(result);
+        };
 
         if (outputs.length > 0) {
           console.log('✅ Structured outputs found:', JSON.stringify(message.artifact.structuredOutputs, null, 2));
