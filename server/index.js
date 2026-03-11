@@ -18,6 +18,9 @@ import campaignRoutes from './routes/campaigns.js';
 import scheduleRoutes from './routes/schedules.js';
 import { calculateNextRetry } from './lib/business-hours.js';
 import { sendCrashAlert, checkSSLExpiry } from './lib/alerting.js';
+import session from 'express-session';
+import bcrypt from 'bcryptjs';
+import { requireAuth } from './middleware/auth.js';
 
 dotenv.config();
 
@@ -40,6 +43,14 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.static(path.join(__dirname, '../public')));
 app.use('/recordings', express.static('/var/data/platinum-survey/recordings'));
+
+// Session middleware
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'change-me-in-production',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false, httpOnly: true, maxAge: 8 * 60 * 60 * 1000 } // 8 hours
+}));
 
 // Rate limiting — 200 requests per minute per IP for API routes
 const apiLimiter = rateLimit({
@@ -562,6 +573,33 @@ const handleCallWebhook = async (req, res) => {
 // Register webhook on both routes (legacy + clean URL)
 app.post('/api/webhook/vapi', handleCallWebhook);
 app.post('/api/webhook/calls', handleCallWebhook);
+
+// Auth routes (unprotected)
+app.get('/login', (req, res) => {
+  if (req.session?.authenticated) return res.redirect('/');
+  res.sendFile(path.join(__dirname, '../public/login.html'));
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { username, password } = req.body;
+  const validUser = username === process.env.AUTH_USERNAME;
+  const validPass = process.env.AUTH_PASSWORD_HASH
+    ? bcrypt.compareSync(password, process.env.AUTH_PASSWORD_HASH)
+    : false;
+  if (validUser && validPass) {
+    req.session.authenticated = true;
+    return res.json({ success: true });
+  }
+  res.status(401).json({ error: 'Invalid credentials' });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  req.session.destroy();
+  res.json({ success: true });
+});
+
+// Protect all remaining routes
+app.use(requireAuth);
 
 // Helper function to log to Google Sheets (extracted for reuse)
 async function logToGoogleSheets(callData) {
