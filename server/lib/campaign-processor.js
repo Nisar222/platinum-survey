@@ -676,6 +676,9 @@ class CampaignProcessor {
     if (['no_answer', 'no answer', 'no-answer', 'unanswered', 'not answered'].includes(vapiDisposition)) {
       return { status: 'no_answer', disposition: 'no_answer', needsRetry: true, retryType: 'no_answer' };
     }
+    if (['failed', 'incomplete', 'unsuccessful'].includes(vapiDisposition)) {
+      return { status: 'no_answer', disposition: 'incomplete', needsRetry: true, retryType: 'no_answer' };
+    }
 
     if (callData.rating || callData.customerFeedback) {
       return { status: 'completed', disposition: 'completed', needsRetry: false };
