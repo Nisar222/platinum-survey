@@ -10,7 +10,7 @@ import XLSX from 'xlsx';
 import { google } from 'googleapis';
 import { readFileSync, writeFileSync } from 'fs';
 import rateLimit from 'express-rate-limit';
-import { initializeDatabase, recoverStuckCalls } from './db/database.js';
+import { initializeDatabase, getDatabase, recoverStuckCalls } from './db/database.js';
 import CampaignProcessor from './lib/campaign-processor.js';
 import RetryScheduler from './lib/retry-scheduler.js';
 import CampaignScheduler from './lib/campaign-scheduler.js';
