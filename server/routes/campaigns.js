@@ -550,6 +550,23 @@ router.get('/queue/status', (req, res) => {
 });
 
 /**
+ * GET /api/campaigns/test-calls
+ * Get all single/manual test calls (not campaign calls)
+ */
+router.get('/test-calls', (req, res) => {
+  try {
+    const db = getDatabase();
+    const calls = db.prepare(`
+      SELECT * FROM test_calls ORDER BY created_at DESC LIMIT 100
+    `).all();
+    res.json(calls);
+  } catch (error) {
+    console.error('❌ Error fetching test calls:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/campaigns/:id
  * Get campaign details with contacts
  */

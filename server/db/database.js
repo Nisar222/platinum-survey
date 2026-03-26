@@ -58,6 +58,27 @@ function runMigrations(db) {
 
   // contacts table — escalation flag for quick lookup
   addColumnIfMissing('contacts', 'escalation_required', 'INTEGER DEFAULT 0');
+
+  // test_calls table — for single/manual test calls (not campaign calls)
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS test_calls (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      vapi_call_id TEXT,
+      customer_name TEXT,
+      phone_number TEXT,
+      call_status TEXT,
+      call_disposition TEXT,
+      duration_seconds INTEGER DEFAULT 0,
+      rating REAL,
+      customer_sentiment TEXT,
+      call_summary TEXT,
+      transcript_text TEXT,
+      recording_url TEXT,
+      ended_reason TEXT,
+      escalation_required INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 }
 
 /**

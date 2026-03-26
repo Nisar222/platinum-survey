@@ -510,7 +510,8 @@ const handleCallWebhook = async (req, res) => {
           transcriptText: message.artifact?.transcript || message.call?.transcript || message.transcript || '',
           stereoRecordingUrl: message.artifact?.stereoRecordingUrl || message.call?.stereoRecordingUrl || '',
           vapiCallId: message.call?.id || message.callId || '',
-          endedReason: message.call?.endedReason || message.endedReason || ''
+          endedReason: message.call?.endedReason || message.endedReason || '',
+          phoneNumber: message.call?.customer?.number || ''
         };
 
         console.log('📤 Prepared call data:', callData);
@@ -530,12 +531,42 @@ const handleCallWebhook = async (req, res) => {
               console.log(`📦 Campaign call detected: Contact ${contactId}, Campaign ${campaignIdResolved}`);
               await batchProcessor.handleCallComplete(contactId, callData);
             } else {
-              // SINGLE CALL - only log to Google Sheets if we have structured outputs
+              // SINGLE CALL — log to test_calls table
+              console.log('📱 Single call - logging to test_calls DB');
+              try {
+                const db = getDatabase();
+                db.prepare(`
+                  INSERT INTO test_calls (
+                    vapi_call_id, customer_name, phone_number,
+                    call_status, call_disposition, duration_seconds,
+                    rating, customer_sentiment, call_summary,
+                    transcript_text, recording_url, ended_reason,
+                    escalation_required, created_at
+                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                `).run(
+                  callData.vapiCallId || null,
+                  callData.customerName || null,
+                  callData.phoneNumber || null,
+                  callData.callDisposition ? 'completed' : 'unknown',
+                  callData.callDisposition || null,
+                  callData.duration || 0,
+                  callData.rating || null,
+                  callData.customerSentiment || null,
+                  callData.callSummary || null,
+                  callData.transcriptText || null,
+                  callData.stereoRecordingUrl || null,
+                  callData.endedReason || null,
+                  callData.escalationRequired ? 1 : 0
+                );
+                console.log('✅ Single call logged to test_calls');
+              } catch (error) {
+                console.error('❌ Error logging single call to DB:', error);
+              }
+
               if (outputs.length > 0) {
-                console.log('📱 Single call - logging to Google Sheets');
                 try {
                   await logToGoogleSheets(callData);
-                  console.log('✅ Successfully logged to Google Sheets from webhook');
+                  console.log('✅ Single call logged to Google Sheets');
                 } catch (error) {
                   console.error('❌ Error logging to Google Sheets from webhook:', error);
                 }
@@ -854,6 +885,10 @@ app.get('/api/calls/concurrency-status', (req, res) => {
 // Named page routes
 app.get('/call-logs', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/call-logs.html'));
+});
+
+app.get('/test-calls', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/test-calls.html'));
 });
 
 // Serve index.html for all other routes (SPA)
