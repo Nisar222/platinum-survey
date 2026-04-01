@@ -13,7 +13,7 @@ import rateLimit from 'express-rate-limit';
 import { initializeDatabase, getDatabase, recoverStuckCalls } from './db/database.js';
 import CampaignProcessor from './lib/campaign-processor.js';
 import RetryScheduler from './lib/retry-scheduler.js';
-import { initiateVapiCall } from './lib/vapi-call.js';
+import { initiateVapiCall, buildSquadMembers } from './lib/vapi-call.js';
 import CampaignScheduler from './lib/campaign-scheduler.js';
 import campaignRoutes from './routes/campaigns.js';
 import scheduleRoutes from './routes/schedules.js';
@@ -86,6 +86,10 @@ app.get('/api/config', (req, res) => {
     assistantId: process.env.VAPI_ASSISTANT_ID,
     phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID
   });
+});
+
+app.get('/api/squad-config', requireAuth, (req, res) => {
+  res.json({ members: buildSquadMembers() });
 });
 
 // Test endpoint to simulate call results (for development/testing)

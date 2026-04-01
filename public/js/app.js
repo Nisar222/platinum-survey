@@ -219,8 +219,16 @@ async function startWebCall(customerName) {
 
         console.log('📞 Call config being sent:', JSON.stringify(callConfig, null, 2));
 
-        // Start the call with assistant overrides to pass customer name
-        const response = await vapi.start(config.assistantId, callConfig);
+        // Fetch squad config from backend (single source of truth)
+        const squadRes = await fetch('/api/squad-config');
+        const squadConfig = await squadRes.json();
+        // Inject customerName into both members' variableValues
+        squadConfig.members.forEach(m => {
+          if (m.assistantOverrides?.variableValues) {
+            m.assistantOverrides.variableValues.customerName = customerName;
+          }
+        });
+        const response = await vapi.start({ squad: squadConfig }, callConfig);
 
         currentCallId = response?.id || Date.now().toString();
         console.log('✅ Call started successfully with ID:', currentCallId);

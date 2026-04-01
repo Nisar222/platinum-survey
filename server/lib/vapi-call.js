@@ -1,13 +1,56 @@
 /**
- * Shared helper for initiating VAPI outbound phone calls via Squad.
+ * Shared helper for all VAPI call initiation (phone + web).
+ * Squad config lives here — one place to update for both call types.
+ */
+
+/**
+ * Build the squad members array for a call.
+ * Used by both initiateVapiCall (phone) and /api/squad-config (web).
  *
- * All call initiation (test calls from dashboard, campaign processor)
- * goes through this single function so squad config stays in one place.
+ * @param {object} variableValues - variableValues to inject into both squad members
+ * @returns {Array} squad members array
+ */
+export function buildSquadMembers(variableValues = {}) {
+  return [
+    {
+      assistantId: process.env.VAPI_ASSISTANT_ID,
+      assistantOverrides: {
+        variableValues: {
+          customerName: variableValues.customerName || '',
+          ...variableValues
+        },
+        'tools:append': [{
+          type: 'handoff',
+          destinations: [{
+            type: 'assistant',
+            assistantId: process.env.VAPI_ARABIC_ASSISTANT_ID,
+            description: 'Transfer when customer speaks Arabic or transcription is garbled and unrecognisable'
+          }],
+          function: { name: 'transfer_to_arabic' }
+        }]
+      }
+    },
+    {
+      assistantId: process.env.VAPI_ARABIC_ASSISTANT_ID,
+      assistantOverrides: {
+        firstMessage: 'تفضل... نكمل بالعربي، زين؟',
+        firstMessageMode: 'assistant-speaks-first',
+        variableValues: {
+          customerName: variableValues.customerName || '',
+          ...variableValues
+        }
+      }
+    }
+  ];
+}
+
+/**
+ * Initiate an outbound phone call via VAPI Squad.
  *
  * @param {object} options
  * @param {string} options.phoneNumber      - E.164 customer phone number
  * @param {string} options.customerName     - Customer display name
- * @param {object} [options.variableValues] - Extra variableValues for Agent 1 (e.g. _contactId)
+ * @param {object} [options.variableValues] - Extra variableValues (e.g. _contactId)
  * @param {object} [options.metadata]       - VAPI call metadata object
  * @returns {Promise<object>}               - Parsed VAPI API response
  */
@@ -22,43 +65,11 @@ export async function initiateVapiCall({ phoneNumber, customerName, variableValu
     throw new Error('VAPI_ARABIC_ASSISTANT_ID is not configured');
   }
 
-  const phoneNumberId = process.env.VAPI_PHONE_NUMBER_ID;
-
   const payload = {
-    phoneNumberId,
+    phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
     customer: { number: phoneNumber, name: customerName },
     squad: {
-      members: [
-        {
-          assistantId: process.env.VAPI_ASSISTANT_ID,
-          assistantOverrides: {
-            variableValues: {
-              customerName,
-              ...variableValues
-            },
-            'tools:append': [{
-              type: 'handoff',
-              destinations: [{
-                type: 'assistant',
-                assistantId: process.env.VAPI_ARABIC_ASSISTANT_ID,
-                description: 'Transfer when customer speaks Arabic or transcription is garbled and unrecognisable'
-              }],
-              function: { name: 'transfer_to_arabic' }
-            }]
-          }
-        },
-        {
-          assistantId: process.env.VAPI_ARABIC_ASSISTANT_ID,
-          assistantOverrides: {
-            firstMessage: 'تفضل... نكمل بالعربي، زين؟',
-            firstMessageMode: 'assistant-speaks-first',
-            variableValues: {
-              customerName,
-              ...variableValues
-            }
-          }
-        }
-      ]
+      members: buildSquadMembers({ customerName, ...variableValues })
     }
   };
 
