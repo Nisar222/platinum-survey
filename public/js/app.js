@@ -60,12 +60,6 @@ function initializeVapi() {
         return;
     }
 
-    if (!config.assistantId) {
-        console.error('❌ VAPI_ASSISTANT_ID is missing from environment');
-        showError('Configuration error: Missing Assistant ID');
-        return;
-    }
-
     try {
         // Create new Vapi instance with public key
         vapi = new window.Vapi(config.publicKey);
@@ -154,12 +148,16 @@ function setupVapiEventListeners() {
 
         // Extract meaningful error message
         let errorMsg = 'Unknown error';
-        if (error.error?.message) {
-            errorMsg = error.error.message;
-        } else if (error.message) {
+        if (typeof error === 'string') {
+            errorMsg = error;
+        } else if (error?.error?.message) {
+            errorMsg = Array.isArray(error.error.message) ? error.error.message.join(', ') : error.error.message;
+        } else if (error?.message) {
             errorMsg = error.message;
-        } else if (error.type) {
+        } else if (error?.type) {
             errorMsg = error.type.replace(/-/g, ' ');
+        } else {
+            errorMsg = JSON.stringify(error);
         }
 
         showError('Call error: ' + errorMsg);
