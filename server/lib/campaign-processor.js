@@ -7,6 +7,7 @@
 import { getDatabase } from '../db/database.js';
 import { calculateNextRetry } from './business-hours.js';
 import { sendEscalationAlert } from './alerting.js';
+import { initiateVapiCall } from './vapi-call.js';
 import fetch from 'node-fetch';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
@@ -341,68 +342,21 @@ class CampaignProcessor {
         callStartedAt
       });
 
-      const vapiResponse = await fetch('https://api.vapi.ai/call/phone', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.VAPI_PRIVATE_KEY}`,
-          'Content-Type': 'application/json'
+      const vapiData = await initiateVapiCall({
+        phoneNumber: contact.phone_number,
+        customerName: contact.customer_name,
+        variableValues: {
+          _contactId: String(contact.id),
+          _campaignId: String(campaignId),
+          _attemptNumber: String(contact.attempt_count + 1)
         },
-        body: JSON.stringify({
-          phoneNumberId: getPhoneNumberId(),
-          customer: { number: contact.phone_number, name: contact.customer_name },
-          squad: {
-            members: [
-              {
-                assistantId: getAssistantId(),
-                assistantOverrides: {
-                  variableValues: {
-                    customerName: contact.customer_name,
-                    _contactId: String(contact.id),
-                    _campaignId: String(campaignId),
-                    _attemptNumber: String(contact.attempt_count + 1)
-                  },
-                  'tools:append': [{
-                    type: 'handoff',
-                    destinations: [{
-                      type: 'assistant',
-                      assistantId: process.env.VAPI_ARABIC_ASSISTANT_ID,
-                      description: 'Transfer when customer speaks Arabic or transcription is garbled and unrecognisable'
-                    }],
-                    function: { name: 'transfer_to_arabic' }
-                  }]
-                }
-              },
-              {
-                assistantId: process.env.VAPI_ARABIC_ASSISTANT_ID,
-                assistantOverrides: {
-                  firstMessage: 'تفضل... نكمل بالعربي، زين؟',
-                  firstMessageMode: 'assistant-speaks-first',
-                  variableValues: {
-                    customerName: contact.customer_name,
-                    _contactId: String(contact.id),
-                    _campaignId: String(campaignId),
-                    _attemptNumber: String(contact.attempt_count + 1)
-                  }
-                }
-              }
-            ]
-          },
-          metadata: {
-            contactId: contact.id,
-            campaignId,
-            batchId: campaignId,
-            attemptNumber: contact.attempt_count + 1
-          }
-        })
+        metadata: {
+          contactId: contact.id,
+          campaignId,
+          batchId: campaignId,
+          attemptNumber: contact.attempt_count + 1
+        }
       });
-
-      if (!vapiResponse.ok) {
-        const errBody = await vapiResponse.json().catch(() => ({}));
-        console.error(`❌ VAPI API error:`, JSON.stringify(errBody));
-        throw new Error(`VAPI API error: ${vapiResponse.status} — ${JSON.stringify(errBody?.message || errBody)}`);
-      }
-
-      const vapiData = await vapiResponse.json();
 
       db.prepare(`
         UPDATE contacts

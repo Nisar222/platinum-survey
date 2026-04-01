@@ -13,6 +13,7 @@ import rateLimit from 'express-rate-limit';
 import { initializeDatabase, getDatabase, recoverStuckCalls } from './db/database.js';
 import CampaignProcessor from './lib/campaign-processor.js';
 import RetryScheduler from './lib/retry-scheduler.js';
+import { initiateVapiCall } from './lib/vapi-call.js';
 import CampaignScheduler from './lib/campaign-scheduler.js';
 import campaignRoutes from './routes/campaigns.js';
 import scheduleRoutes from './routes/schedules.js';
@@ -123,57 +124,7 @@ app.post('/api/start-phone-call', async (req, res) => {
     console.log('📞 Initiating phone call to:', phoneNumber);
     console.log('👤 Customer name:', customerName);
 
-    // Validate that we have the private key
-    if (!process.env.VAPI_PRIVATE_KEY) {
-      throw new Error('VAPI_PRIVATE_KEY is not configured. Phone calls require a private key.');
-    }
-
-    // Make API call to VAPI to initiate phone call
-    const vapiResponse = await fetch('https://api.vapi.ai/call/phone', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.VAPI_PRIVATE_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
-        customer: { number: phoneNumber, name: customerName },
-        squad: {
-          members: [
-            {
-              assistantId: process.env.VAPI_ASSISTANT_ID,
-              assistantOverrides: {
-                variableValues: { customerName },
-                'tools:append': [{
-                  type: 'handoff',
-                  destinations: [{
-                    type: 'assistant',
-                    assistantId: process.env.VAPI_ARABIC_ASSISTANT_ID,
-                    description: 'Transfer when customer speaks Arabic or transcription is garbled and unrecognisable'
-                  }],
-                  function: { name: 'transfer_to_arabic' }
-                }]
-              }
-            },
-            {
-              assistantId: process.env.VAPI_ARABIC_ASSISTANT_ID,
-              assistantOverrides: {
-                firstMessage: 'تفضل... نكمل بالعربي، زين؟',
-                firstMessageMode: 'assistant-speaks-first',
-                variableValues: { customerName }
-              }
-            }
-          ]
-        }
-      })
-    });
-
-    const vapiResult = await vapiResponse.json();
-
-    if (!vapiResponse.ok) {
-      console.error('❌ VAPI API error:', vapiResult);
-      throw new Error(vapiResult.message || 'Failed to initiate call with VAPI');
-    }
+    const vapiResult = await initiateVapiCall({ phoneNumber, customerName });
 
     console.log('✅ Phone call initiated successfully:', vapiResult);
 
