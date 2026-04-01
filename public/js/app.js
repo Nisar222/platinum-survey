@@ -228,7 +228,7 @@ async function startWebCall(customerName) {
             m.assistantOverrides.variableValues.customerName = customerName;
           }
         });
-        const response = await vapi.start({ squad: squadConfig }, callConfig);
+        const response = await vapi.start(undefined, undefined, squadConfig);
 
         currentCallId = response?.id || Date.now().toString();
         console.log('✅ Call started successfully with ID:', currentCallId);
