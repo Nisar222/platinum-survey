@@ -348,19 +348,44 @@ class CampaignProcessor {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          assistantId: getAssistantId(),
           phoneNumberId: getPhoneNumberId(),
-          customer: {
-            number: contact.phone_number,
-            name: contact.customer_name
-          },
-          assistantOverrides: {
-            variableValues: {
-              customerName: contact.customer_name,
-              _contactId: String(contact.id),
-              _campaignId: String(campaignId),
-              _attemptNumber: String(contact.attempt_count + 1)
-            }
+          customer: { number: contact.phone_number, name: contact.customer_name },
+          squad: {
+            members: [
+              {
+                assistantId: getAssistantId(),
+                assistantOverrides: {
+                  variableValues: {
+                    customerName: contact.customer_name,
+                    _contactId: String(contact.id),
+                    _campaignId: String(campaignId),
+                    _attemptNumber: String(contact.attempt_count + 1)
+                  },
+                  'tools:append': [{
+                    type: 'handoff',
+                    destinations: [{
+                      type: 'assistant',
+                      assistantId: process.env.VAPI_ARABIC_ASSISTANT_ID,
+                      description: 'Transfer when customer speaks Arabic or transcription is garbled and unrecognisable'
+                    }],
+                    function: { name: 'transfer_to_arabic' }
+                  }]
+                }
+              },
+              {
+                assistantId: process.env.VAPI_ARABIC_ASSISTANT_ID,
+                assistantOverrides: {
+                  firstMessage: 'تفضل... نكمل بالعربي، زين؟',
+                  firstMessageMode: 'assistant-speaks-first',
+                  variableValues: {
+                    customerName: contact.customer_name,
+                    _contactId: String(contact.id),
+                    _campaignId: String(campaignId),
+                    _attemptNumber: String(contact.attempt_count + 1)
+                  }
+                }
+              }
+            ]
           },
           metadata: {
             contactId: contact.id,

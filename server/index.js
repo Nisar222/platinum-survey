@@ -136,16 +136,34 @@ app.post('/api/start-phone-call', async (req, res) => {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        assistantId: process.env.VAPI_ASSISTANT_ID,
         phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
-        customer: {
-          number: phoneNumber,
-          name: customerName
-        },
-        assistantOverrides: {
-          variableValues: {
-            customerName: customerName
-          }
+        customer: { number: phoneNumber, name: customerName },
+        squad: {
+          members: [
+            {
+              assistantId: process.env.VAPI_ASSISTANT_ID,
+              assistantOverrides: {
+                variableValues: { customerName },
+                'tools:append': [{
+                  type: 'handoff',
+                  destinations: [{
+                    type: 'assistant',
+                    assistantId: process.env.VAPI_ARABIC_ASSISTANT_ID,
+                    description: 'Transfer when customer speaks Arabic or transcription is garbled and unrecognisable'
+                  }],
+                  function: { name: 'transfer_to_arabic' }
+                }]
+              }
+            },
+            {
+              assistantId: process.env.VAPI_ARABIC_ASSISTANT_ID,
+              assistantOverrides: {
+                firstMessage: 'تفضل... نكمل بالعربي، زين؟',
+                firstMessageMode: 'assistant-speaks-first',
+                variableValues: { customerName }
+              }
+            }
+          ]
         }
       })
     });
