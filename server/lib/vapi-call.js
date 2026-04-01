@@ -1,42 +1,11 @@
 /**
  * Shared helper for all VAPI call initiation (phone + web).
- * Squad config lives here — one place to update for both call types.
+ * Uses a pre-saved VAPI Squad (VAPI_SQUAD_ID) so the squad definition
+ * lives in the VAPI dashboard — one place to manage assistants and handoff tools.
  */
 
 /**
- * Build the squad members array for a call.
- * Used by both initiateVapiCall (phone) and /api/squad-config (web).
- *
- * @param {object} variableValues - variableValues to inject into both squad members
- * @returns {Array} squad members array
- */
-export function buildSquadMembers(variableValues = {}) {
-  return [
-    {
-      assistantId: process.env.VAPI_ASSISTANT_ID,
-      assistantOverrides: {
-        variableValues: {
-          customerName: variableValues.customerName || '',
-          ...variableValues
-        }
-      }
-    },
-    {
-      assistantId: process.env.VAPI_ARABIC_ASSISTANT_ID,
-      assistantOverrides: {
-        firstMessage: 'تفضل... نكمل بالعربي، زين؟',
-        firstMessageMode: 'assistant-speaks-first',
-        variableValues: {
-          customerName: variableValues.customerName || '',
-          ...variableValues
-        }
-      }
-    }
-  ];
-}
-
-/**
- * Initiate an outbound phone call via VAPI Squad.
+ * Initiate an outbound phone call via a pre-saved VAPI Squad.
  *
  * @param {object} options
  * @param {string} options.phoneNumber      - E.164 customer phone number
@@ -49,18 +18,21 @@ export async function initiateVapiCall({ phoneNumber, customerName, variableValu
   if (!process.env.VAPI_PRIVATE_KEY) {
     throw new Error('VAPI_PRIVATE_KEY is not configured');
   }
-  if (!process.env.VAPI_ASSISTANT_ID) {
-    throw new Error('VAPI_ASSISTANT_ID is not configured');
+  if (!process.env.VAPI_SQUAD_ID) {
+    throw new Error('VAPI_SQUAD_ID is not configured');
   }
-  if (!process.env.VAPI_ARABIC_ASSISTANT_ID) {
-    throw new Error('VAPI_ARABIC_ASSISTANT_ID is not configured');
-  }
+
+  const allVars = { customerName, ...variableValues };
 
   const payload = {
     phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
     customer: { number: phoneNumber, name: customerName },
-    squad: {
-      members: buildSquadMembers({ customerName, ...variableValues })
+    squadId: process.env.VAPI_SQUAD_ID,
+    squadOverrides: {
+      members: [
+        { assistantOverrides: { variableValues: allVars } },
+        { assistantOverrides: { variableValues: allVars } }
+      ]
     }
   };
 
