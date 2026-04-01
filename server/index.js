@@ -88,7 +88,7 @@ app.get('/api/config', (req, res) => {
   });
 });
 
-app.get('/api/squad-config', requireAuth, (req, res) => {
+app.get('/api/squad-config', (req, res) => {
   res.json({ squadId: process.env.VAPI_SQUAD_ID });
 });
 
