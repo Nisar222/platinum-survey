@@ -18,16 +18,7 @@ export function buildSquadMembers(variableValues = {}) {
         variableValues: {
           customerName: variableValues.customerName || '',
           ...variableValues
-        },
-        'tools:append': [{
-          type: 'handoff',
-          destinations: [{
-            type: 'assistant',
-            assistantId: process.env.VAPI_ARABIC_ASSISTANT_ID,
-            description: 'Transfer when customer speaks Arabic or transcription is garbled and unrecognisable'
-          }],
-          function: { name: 'transfer_to_arabic' }
-        }]
+        }
       }
     },
     {
