@@ -387,6 +387,7 @@ const handleCallWebhook = async (req, res) => {
         console.log('  📋 Metadata (call):', JSON.stringify(message.call?.metadata));
         console.log('  📋 Metadata (top):', JSON.stringify(message.metadata));
         console.log('  📋 message.call keys:', message.call ? Object.keys(message.call).join(', ') : 'NO CALL OBJECT');
+        if (message.call?.squadId) console.log('  📋 SQUAD call object (full):', JSON.stringify(message.call));
         console.log('  ⏱️  Duration:', message.call?.startedAt, '->', message.call?.endedAt);
         console.log('  🔚 Ended reason:', message.call?.endedReason);
         console.log('  📝 Has artifact:', !!message.artifact);
