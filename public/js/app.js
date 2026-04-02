@@ -220,8 +220,8 @@ async function startWebCall(customerName) {
         // Fetch squad ID from backend (single source of truth)
         const squadRes = await fetch('/api/squad-config');
         const { squadId } = await squadRes.json();
-        // Pass squadId as string — SDK sends it as squadId to VAPI
-        const response = await vapi.start(undefined, undefined, squadId);
+        // assistantOverrides (2nd arg) carries variableValues into the squad's active assistant
+        const response = await vapi.start(undefined, { variableValues: { customerName } }, squadId);
 
         currentCallId = response?.id || Date.now().toString();
         console.log('✅ Call started successfully with ID:', currentCallId);
