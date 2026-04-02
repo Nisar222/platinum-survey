@@ -28,7 +28,7 @@ export async function initiateVapiCall({ phoneNumber, customerName, variableValu
     phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID,
     customer: { number: phoneNumber, name: customerName },
     squadId: process.env.VAPI_SQUAD_ID,
-    variableValues: allVars  // top-level: available to all squad members, echoed in webhook
+    assistantOverrides: { variableValues: allVars }  // echoed in webhook as call.assistantOverrides.variableValues
   };
 
   if (Object.keys(metadata).length > 0) {
