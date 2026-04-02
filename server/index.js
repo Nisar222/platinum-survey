@@ -387,7 +387,6 @@ const handleCallWebhook = async (req, res) => {
         console.log('  📋 Metadata (call):', JSON.stringify(message.call?.metadata));
         console.log('  📋 Metadata (top):', JSON.stringify(message.metadata));
         console.log('  📋 message.call keys:', message.call ? Object.keys(message.call).join(', ') : 'NO CALL OBJECT');
-        if (message.call?.squadId) console.log('  📋 SQUAD call object (full):', JSON.stringify(message.call));
         console.log('  ⏱️  Duration:', message.call?.startedAt, '->', message.call?.endedAt);
         console.log('  🔚 Ended reason:', message.call?.endedReason);
         console.log('  📝 Has artifact:', !!message.artifact);
@@ -395,9 +394,11 @@ const handleCallWebhook = async (req, res) => {
         console.log('  📃 Has transcript:', !!(message.artifact?.transcript));
 
         // Check for campaign identifiers - prefer variableValues (reliable), fallback to metadata
+        // Squad calls: vars may be in artifact.variableValues or call.variableValues (top-level)
         const vars = message.call?.assistantOverrides?.variableValues
           || message.assistantOverrides?.variableValues
           || message.call?.variableValues
+          || message.artifact?.variableValues
           || {};
         const metadata = message.call?.metadata || message.metadata || {};
         const contactId = vars._contactId ? parseInt(vars._contactId) : metadata.contactId;
