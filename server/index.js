@@ -866,6 +866,10 @@ app.get('/test-calls', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/test-calls.html'));
 });
 
+app.get('/campaign-report', (req, res) => {
+  res.sendFile(path.join(__dirname, '../public/campaign-report.html'));
+});
+
 // Serve index.html for all other routes (SPA)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));

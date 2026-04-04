@@ -567,6 +567,102 @@ router.get('/test-calls', (req, res) => {
 });
 
 /**
+ * GET /api/campaigns/:id/report
+ * Per-campaign performance report for the reporting dashboard
+ * NOTE: must be before /:id to prevent Express matching "report" as an id
+ */
+router.get('/:id/report', (req, res) => {
+  try {
+    const db = getDatabase();
+    const campaignId = parseInt(req.params.id);
+
+    const campaign = db.prepare(`SELECT id, name, status, total_contacts, created_at FROM campaigns WHERE id = ?`).get(campaignId);
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+
+    const summary = db.prepare(`
+      SELECT
+        c.total_contacts AS totalScheduled,
+        COUNT(DISTINCT CASE WHEN co.status = 'completed' THEN co.id END) AS completed,
+        COUNT(DISTINCT CASE WHEN co.status IN ('no_answer','callback_requested') THEN co.id END) AS rescheduled,
+        COUNT(DISTINCT CASE WHEN cl.callback_requested = 1 THEN cl.id END) AS callbackRequests,
+        COUNT(DISTINCT CASE WHEN cl.escalation_required = 1 THEN cl.id END) AS escalationsTotal,
+        COUNT(DISTINCT CASE WHEN cl.escalation_required = 1 AND co.status = 'no_answer' THEN cl.id END) AS escalationsDueToNonResponse,
+        COUNT(DISTINCT CASE WHEN cl.escalation_required = 1 AND cl.rating <= 5 THEN cl.id END) AS escalationsDueToLowRating
+      FROM campaigns c
+      LEFT JOIN contacts co ON c.id = co.campaign_id
+      LEFT JOIN call_logs cl ON co.id = cl.contact_id
+      WHERE c.id = ?
+    `).get(campaignId);
+
+    const escalations = db.prepare(`
+      SELECT co.customer_name AS customerName, cl.call_summary AS callSummary, cl.customer_sentiment AS customerSentiment
+      FROM call_logs cl
+      JOIN contacts co ON cl.contact_id = co.id
+      WHERE cl.campaign_id = ? AND cl.escalation_required = 1
+      ORDER BY cl.created_at DESC
+    `).all(campaignId);
+
+    res.json({ campaign, summary, escalations });
+  } catch (error) {
+    console.error('❌ Error fetching campaign report:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
+ * GET /api/campaigns/:id/report/export
+ * CSV export of campaign report data
+ * NOTE: must be before /:id wildcard
+ */
+router.get('/:id/report/export', (req, res) => {
+  try {
+    const db = getDatabase();
+    const campaignId = parseInt(req.params.id);
+
+    const campaign = db.prepare(`SELECT name FROM campaigns WHERE id = ?`).get(campaignId);
+    if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
+
+    const rows = db.prepare(`
+      SELECT co.customer_name, co.phone_number, co.status, cl.call_disposition,
+             cl.duration_seconds, cl.rating, cl.customer_sentiment, cl.call_summary,
+             cl.callback_requested, cl.escalation_required, cl.ended_reason, cl.created_at
+      FROM contacts co
+      LEFT JOIN call_logs cl ON co.id = cl.contact_id
+        AND cl.id = (SELECT MAX(id) FROM call_logs WHERE contact_id = co.id)
+      WHERE co.campaign_id = ?
+      ORDER BY co.id ASC
+    `).all(campaignId);
+
+    const headers = ['Customer Name','Phone Number','Status','Disposition','Duration (s)','Rating','Sentiment','Call Summary','Callback','Escalation Required','Ended Reason','Call Time'];
+    const csvRows = [headers.join(',')];
+    rows.forEach(r => {
+      csvRows.push([
+        `"${(r.customer_name||'').replace(/"/g,'""')}"`,
+        r.phone_number || '',
+        r.status || '',
+        r.call_disposition || '',
+        r.duration_seconds || '',
+        r.rating || '',
+        r.customer_sentiment || '',
+        `"${(r.call_summary||'').replace(/"/g,'""')}"`,
+        r.callback_requested ? 'Yes' : 'No',
+        r.escalation_required ? 'Yes' : 'No',
+        r.ended_reason || '',
+        r.created_at || ''
+      ].join(','));
+    });
+
+    const filename = `${campaign.name.replace(/[^a-zA-Z0-9]/g,'-')}-report.csv`;
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csvRows.join('\n'));
+  } catch (error) {
+    console.error('❌ Error exporting campaign report:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+/**
  * GET /api/campaigns/:id
  * Get campaign details with contacts
  */
