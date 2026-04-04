@@ -28,7 +28,7 @@ async function loadCampaigns() {
     const res = await fetch('/api/campaigns?filter=all');
     if (!res.ok) { window.location.href = '/login'; return; }
     const data = await res.json();
-    allCampaigns = (data.campaigns || data).slice().reverse(); // latest first
+    allCampaigns = data.campaigns || data; // API returns newest first already
     renderCampaignList(allCampaigns);
   } catch (e) {
     console.error('Failed to load campaigns:', e);
@@ -237,21 +237,16 @@ function showReport() {
 
 function exportCSV() {
   if (selectedIds.size === 0) return;
-  // Export first selected campaign (or all if multi — use first for now)
-  const ids = [...selectedIds];
-  if (ids.length === 1) {
-    window.location.href = `/api/campaigns/${ids[0]}/report/export`;
-  } else {
-    // Download each in sequence
-    ids.forEach((id, i) => {
-      setTimeout(() => {
-        const a = document.createElement('a');
-        a.href = `/api/campaigns/${id}/report/export`;
-        a.download = '';
-        a.click();
-      }, i * 800);
-    });
-  }
+  [...selectedIds].forEach((id, i) => {
+    setTimeout(() => {
+      const a = document.createElement('a');
+      a.href = `/api/campaigns/${id}/report/export`;
+      a.download = '';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }, i * 600);
+  });
 }
 
 document.addEventListener('DOMContentLoaded', () => {
