@@ -37,7 +37,8 @@ async function loadCampaigns() {
   try {
     const res = await fetch('/api/campaigns?filter=all');
     if (!res.ok) { window.location.href = '/login'; return; }
-    const campaigns = await res.json();
+    const data = await res.json();
+    const campaigns = data.campaigns || data;
     const select = document.getElementById('campaignSelect');
     campaigns.forEach(c => {
       const opt = document.createElement('option');
