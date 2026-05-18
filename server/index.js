@@ -168,6 +168,7 @@ app.delete('/api/end-phone-call/:callId', async (req, res) => {
 
     // Use 3CX API to disconnect the call
     // First, authenticate with 3CX
+    const authAbort = AbortSignal.timeout(5000);
     const authResponse = await fetch(`${process.env.CX_API_URL}/api/login`, {
       method: 'POST',
       headers: {
@@ -176,7 +177,8 @@ app.delete('/api/end-phone-call/:callId', async (req, res) => {
       body: JSON.stringify({
         username: process.env.CX_USERNAME,
         password: process.env.CX_PASSWORD
-      })
+      }),
+      signal: authAbort
     });
 
     if (!authResponse.ok) {
@@ -191,7 +193,8 @@ app.delete('/api/end-phone-call/:callId', async (req, res) => {
       method: 'GET',
       headers: {
         'Cookie': `session=${sessionId}`
-      }
+      },
+      signal: AbortSignal.timeout(5000)
     });
 
     if (!callsResponse.ok) {
@@ -222,7 +225,8 @@ app.delete('/api/end-phone-call/:callId', async (req, res) => {
       },
       body: JSON.stringify({
         CallId: targetCall.Id
-      })
+      }),
+      signal: AbortSignal.timeout(5000)
     });
 
     if (!disconnectResponse.ok) {
