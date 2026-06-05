@@ -541,7 +541,7 @@ class CampaignProcessor {
           callData.callbackSchedule || null
         );
         console.log(`🔄 Next retry scheduled for: ${nextRetryAt} (based on call_ended_at: ${callEndedAt})`);
-      } else if (contact.attempt_count >= contact.max_attempts) {
+      } else if (contact.attempt_count >= contact.max_attempts && disposition.status !== 'completed') {
         nextStatus = 'max_attempts';
         console.log(`⚠️  Contact ${contactId} reached max attempts (${contact.max_attempts})`);
       }

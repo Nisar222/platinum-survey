@@ -309,7 +309,7 @@ app.post('/api/log-to-sheets', async (req, res) => {
       callData.customerName || '',           // A: Customer Name
       callData.callTimestamp || '',          // B: Call Timestamp
       callData.policyUsed || '',             // C: Policy Used
-      callData.rating || '',                 // D: Rating
+      callData.rating ?? '',                  // D: Rating
       callData.customerFeedback || '',       // E: Customer Feedback
       callData.customerSentiment || '',      // F: Feedback Sentiment
       callData.callSummary || '',            // G: Call Summary
@@ -450,6 +450,7 @@ const handleCallWebhook = async (req, res) => {
         const structuredData = {
           customerName: getByName('Customer Name'),
           policyUsed: getByName('Policy Used'),
+          feedbackProvided: getByName('feedbackProvided'),
           rating: getByName('Feedback Score'),
           customerFeedback: getByName('Customer Feedback'),
           customerSentiment: getByName('Customer Sentiment'),
@@ -462,6 +463,16 @@ const handleCallWebhook = async (req, res) => {
           escalationRequired: getByName('Escalation Required') ?? false,
         };
 
+        // Normalize rating: null unless feedbackProvided=true AND value is a valid 1–10 number
+        const rawRating = structuredData.rating;
+        const normalizedRating = (() => {
+          if (structuredData.feedbackProvided !== true) return null;
+          if (rawRating === null || rawRating === undefined || String(rawRating) === 'null') return null;
+          const n = Number(rawRating);
+          if (isNaN(n) || n < 1 || n > 10) return null;
+          return n;
+        })();
+
         // Prepare call data
         const callTimestampRaw = message.call?.startedAt || message.timestamp || Date.now();
         const callTimestampIso = new Date(callTimestampRaw).toISOString();
@@ -473,7 +484,7 @@ const handleCallWebhook = async (req, res) => {
             '',
           callTimestamp: callTimestampIso,
           policyUsed: structuredData.policyUsed || '',
-          rating: structuredData.rating || '',
+          rating: normalizedRating,
           customerFeedback: structuredData.customerFeedback || '',
           customerSentiment: structuredData.customerSentiment || '',
           feedbackSummary: structuredData.feedbackSummary || '',
@@ -529,7 +540,7 @@ const handleCallWebhook = async (req, res) => {
                   callData.callDisposition ? 'completed' : 'unknown',
                   callData.callDisposition || null,
                   callData.duration || 0,
-                  callData.rating || null,
+                  callData.rating ?? null,
                   callData.customerSentiment || null,
                   callData.callSummary || null,
                   callData.transcriptText || null,
@@ -628,7 +639,7 @@ async function logToGoogleSheets(callData) {
     callData.customerName || '',                        // A: Customer Name
     callData.callTimestamp || '',                       // B: Call Timestamp
     callData.policyUsed || '',                          // C: Policy Used
-    callData.rating || '',                              // D: Rating
+    callData.rating ?? '',                              // D: Rating
     callData.customerFeedback || '',                    // E: Customer Feedback
     callData.customerSentiment || '',                   // F: Feedback Sentiment
     callData.callSummary || '',                         // G: Call Summary
