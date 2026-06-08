@@ -1,6 +1,6 @@
 {
   "phoneNumberId": "fb410d46-82f7-4adf-b088-22594fd4e91f",
-  "assistantId": "",
+  "assistantId": "01d1c1f8-88ed-468f-9ee6-1e3cfce968eb",
   "maxConcurrentCalls": 5,
   "interCallDelaySeconds": 300,
   "maxAttemptsPerContact": 3,
