@@ -546,6 +546,15 @@ class CampaignProcessor {
         console.log(`⚠️  Contact ${contactId} reached max attempts (${contact.max_attempts})`);
       }
 
+      // Force escalation when a callback was requested on the final attempt —
+      // the campaign will end and the customer must be called back manually by the CS team.
+      const finalAttemptCallback = contact.attempt_count >= contact.max_attempts
+        && disposition.status === 'callback_requested';
+      if (finalAttemptCallback) {
+        callData.escalationRequired = true;
+        console.log(`🚨 Forcing escalation: callback requested on final attempt for contact ${contactId}`);
+      }
+
       db.prepare(`
         UPDATE contacts
         SET status = ?,

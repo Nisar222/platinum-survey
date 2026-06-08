@@ -474,7 +474,7 @@ const handleCallWebhook = async (req, res) => {
         })();
 
         // Prepare call data
-        const callTimestampRaw = message.call?.startedAt || message.timestamp || Date.now();
+        const callTimestampRaw = message.call?.startedAt || message.artifact?.startedAt || message.timestamp || Date.now();
         const callTimestampIso = new Date(callTimestampRaw).toISOString();
 
         const callData = {
@@ -492,9 +492,12 @@ const handleCallWebhook = async (req, res) => {
           callback: structuredData.callback || false,
           callbackSchedule: structuredData.callbackSchedule || '',
           callbackAttempt: structuredData.callbackAttempt || 1,
-          duration: message.call?.startedAt && message.call?.endedAt
-            ? Math.round((new Date(message.call.endedAt) - new Date(message.call.startedAt)) / 1000)
-            : (message.artifact?.duration || message.call?.duration || message.duration || 0),
+          duration: (() => {
+            const s = message.call?.startedAt || message.artifact?.startedAt;
+            const e = message.call?.endedAt   || message.artifact?.endedAt;
+            if (s && e) return Math.round((new Date(e) - new Date(s)) / 1000);
+            return message.artifact?.duration || message.call?.duration || message.duration || 0;
+          })(),
           callDisposition: structuredData.callDisposition || '',
           escalationRequired: structuredData.escalationRequired || false,
           transcriptText: message.artifact?.transcript || message.call?.transcript || message.transcript || '',
