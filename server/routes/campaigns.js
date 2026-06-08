@@ -20,29 +20,6 @@ function getMaxAttempts() {
 
 const router = express.Router();
 
-/**
- * Map internal contact status to customer-facing display status
- * Completed = survey successfully done
- * Rescheduled = no_answer or callback_requested with retries remaining
- * Failed = max_attempts exhausted or hard failure
- */
-function getDisplayStatus(status) {
-  switch (status) {
-    case 'completed':
-      return 'Completed';
-    case 'no_answer':
-    case 'callback_requested':
-    case 'calling':
-    case 'pending':
-      return 'Rescheduled';
-    case 'max_attempts':
-    case 'failed':
-      return 'Failed';
-    default:
-      return status;
-  }
-}
-
 // Configure multer for file uploads (memory storage)
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -378,7 +355,7 @@ router.get('/reports/calls', (req, res) => {
     if (format === 'csv') {
       const headers = [
         'Call Time', 'Customer Name', 'Phone Number', 'Campaign',
-        'Call Result', 'Status', 'Disposition', 'Duration (s)', 'Rating',
+        'Disposition', 'Duration (s)', 'Rating',
         'Sentiment', 'Call Summary',
         'Callback Requested', 'Callback Schedule', 'Ended Reason',
         'Recording URL', 'Attempt #', 'Escalation Required'
@@ -395,7 +372,7 @@ router.get('/reports/calls', (req, res) => {
 
       const rows = calls.map(c => [
         toLocalTimestamp(c.call_time), c.customer_name, c.phone_number, c.campaign_name,
-        getDisplayStatus(c.call_status), c.call_status, c.call_disposition, c.duration_seconds, c.rating,
+        c.call_disposition, c.duration_seconds, c.rating,
         c.customer_sentiment, c.call_summary,
         c.callback_requested ? 'Yes' : 'No', c.callback_schedule,
         c.ended_reason, c.recording_url, c.attempt_number,
@@ -633,13 +610,12 @@ router.get('/:id/report/export', (req, res) => {
       ORDER BY co.id ASC
     `).all(campaignId);
 
-    const headers = ['Customer Name','Phone Number','Status','Disposition','Duration (s)','Rating','Sentiment','Call Summary','Callback','Escalation Required','Ended Reason','Call Time'];
+    const headers = ['Customer Name','Phone Number','Disposition','Duration (s)','Rating','Sentiment','Call Summary','Callback','Escalation Required','Ended Reason','Call Time'];
     const csvRows = [headers.join(',')];
     rows.forEach(r => {
       csvRows.push([
         `"${(r.customer_name||'').replace(/"/g,'""')}"`,
         r.phone_number || '',
-        r.status || '',
         r.call_disposition || '',
         r.duration_seconds || '',
         r.rating || '',
@@ -1019,7 +995,7 @@ router.get('/:id/export', (req, res) => {
 
     // Build CSV
     const headers = [
-      'Customer Name', 'Phone Number', 'Call Result', 'Status', 'Call Disposition',
+      'Customer Name', 'Phone Number', 'Call Disposition',
       'Attempts', 'Max Attempts', 'Last Called', 'Next Retry',
       'Rating', 'Sentiment', 'Call Summary',
       'Duration (s)', 'Callback Requested', 'Callback Schedule',
@@ -1038,8 +1014,6 @@ router.get('/:id/export', (req, res) => {
     const rows = contacts.map(c => [
       c.customer_name,
       c.phone_number,
-      getDisplayStatus(c.status),
-      c.status,
       c.call_disposition,
       c.attempt_count,
       c.max_attempts,
