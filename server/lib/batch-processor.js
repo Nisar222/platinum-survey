@@ -451,11 +451,12 @@ class BatchCallProcessor {
 
       // Calculate next retry if needed
       if (disposition.needsRetry && contact.attempt_count < contact.max_attempts) {
-        nextRetryAt = calculateNextRetry(
+        const retryResult = calculateNextRetry(
           disposition.retryType,
           new Date(),
           callData.callbackSchedule
         );
+        nextRetryAt = retryResult?.requiresEscalation ? null : retryResult;
         console.log(`🔄 Next retry scheduled for: ${nextRetryAt}`);
       } else if (contact.attempt_count >= contact.max_attempts) {
         nextStatus = 'max_attempts';

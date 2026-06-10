@@ -535,11 +535,20 @@ class CampaignProcessor {
       if (disposition.needsRetry && contact.attempt_count < contact.max_attempts) {
         // Use our own call_ended_at as the reference time (not VAPI's).
         const retryBaseTime = new Date(callEndedAt);
-        nextRetryAt = calculateNextRetry(
+        const retryResult = calculateNextRetry(
           disposition.retryType,
           retryBaseTime,
           callData.callbackSchedule || null
         );
+        // calculateNextRetry returns { nextRetry, requiresEscalation } for bad callback schedules,
+        // or a plain Date for normal cases.
+        if (retryResult && retryResult.requiresEscalation) {
+          callData.escalationRequired = true;
+          nextRetryAt = null;
+          console.log(`🚨 Forcing escalation: callback schedule invalid or out of 3-day window for contact ${contactId}`);
+        } else {
+          nextRetryAt = retryResult;
+        }
         console.log(`🔄 Next retry scheduled for: ${nextRetryAt} (based on call_ended_at: ${callEndedAt})`);
       } else if (contact.attempt_count >= contact.max_attempts && disposition.status !== 'completed') {
         nextStatus = 'max_attempts';

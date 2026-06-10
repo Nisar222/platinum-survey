@@ -764,9 +764,10 @@ app.post('/api/test/simulate-callback', (req, res) => {
   const { callbackSchedule, disposition = 'callback_requested' } = req.body;
   const now = new Date();
 
-  const nextRetry = calculateNextRetry(disposition, now, callbackSchedule || null);
+  const retryResult = calculateNextRetry(disposition, now, callbackSchedule || null);
+  const nextRetry = retryResult?.requiresEscalation ? null : retryResult;
 
-  const diffMs = nextRetry - now;
+  const diffMs = nextRetry ? nextRetry - now : null;
   const diffMins = Math.round(diffMs / 60000);
   const diffHours = (diffMs / 3600000).toFixed(1);
 

@@ -202,14 +202,21 @@ export function calculateNextRetry(outcome, currentTime = new Date(), customerRe
           ? parseISO(customerRequestedTime)
           : new Date(customerRequestedTime);
 
-        // Guard: parseISO returns Invalid Date for non-ISO strings (e.g. "tomorrow morning")
         const isValidDate = !isNaN(nextRetry.getTime());
+        const now = new Date(currentTime);
+        const maxAllowed = addDays(now, 3);
+        const isPast = isValidDate && nextRetry <= now;
+        const isTooFar = isValidDate && nextRetry > maxAllowed;
 
-        // If invalid or in the past, fall back to default retry hours
-        if (!isValidDate || nextRetry <= new Date(currentTime)) {
-          if (!isValidDate) console.log(`⚠️  Callback time "${customerRequestedTime}" is not a valid ISO date — defaulting to +${getCallbackRetryHours()} hours`);
-          else console.log(`⚠️  Callback time ${nextRetry.toISOString()} is in the past — defaulting to +${getCallbackRetryHours()} hours`);
-          nextRetry = addHours(new Date(currentTime), getCallbackRetryHours());
+        if (!isValidDate) {
+          console.log(`⚠️  Callback time "${customerRequestedTime}" is not a valid ISO date — escalating`);
+          return { nextRetry: null, requiresEscalation: true };
+        } else if (isPast) {
+          console.log(`⚠️  Callback time ${nextRetry.toISOString()} is in the past — escalating`);
+          return { nextRetry: null, requiresEscalation: true };
+        } else if (isTooFar) {
+          console.log(`⚠️  Callback time ${nextRetry.toISOString()} is more than 3 days away — escalating`);
+          return { nextRetry: null, requiresEscalation: true };
         }
 
         // Adjust to business hours if outside
