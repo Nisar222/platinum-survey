@@ -250,8 +250,12 @@ router.get('/', (req, res) => {
         END) as connected,
         COUNT(DISTINCT CASE WHEN co.status = 'completed' THEN co.id END) as completed,
         COUNT(DISTINCT CASE WHEN co.status = 'completed' THEN co.id END) as display_completed,
-        COUNT(DISTINCT CASE WHEN co.status IN ('no_answer', 'callback_requested') THEN co.id END) as display_rescheduled,
-        COUNT(DISTINCT CASE WHEN co.status IN ('max_attempts', 'failed') THEN co.id END) as display_failed
+        COUNT(DISTINCT CASE WHEN co.status IN ('no_answer', 'callback_requested')
+          OR (co.status = 'max_attempts' AND co.call_disposition IN ('no_answer', 'callback_requested', 'incomplete'))
+          THEN co.id END) as display_rescheduled,
+        COUNT(DISTINCT CASE WHEN co.status IN ('max_attempts', 'failed')
+          AND co.call_disposition NOT IN ('no_answer', 'callback_requested', 'incomplete')
+          THEN co.id END) as display_failed
       FROM campaigns c
       LEFT JOIN contacts co ON c.id = co.campaign_id
       LEFT JOIN call_logs cl ON co.id = cl.contact_id
@@ -564,7 +568,7 @@ router.get('/:id/report', (req, res) => {
         COUNT(DISTINCT CASE WHEN cl.callback_requested = 1 THEN cl.id END) AS callbackRequests,
         COUNT(DISTINCT CASE WHEN cl.escalation_required = 1 THEN cl.id END) AS escalationsTotal,
         COUNT(DISTINCT CASE WHEN cl.escalation_required = 1 AND co.status = 'no_answer' THEN cl.id END) AS escalationsDueToNonResponse,
-        COUNT(DISTINCT CASE WHEN cl.escalation_required = 1 AND cl.rating <= 5 THEN cl.id END) AS escalationsDueToLowRating
+        COUNT(DISTINCT CASE WHEN cl.escalation_required = 1 AND cl.rating <= 6 THEN cl.id END) AS escalationsDueToLowRating
       FROM campaigns c
       LEFT JOIN contacts co ON c.id = co.campaign_id
       LEFT JOIN call_logs cl ON co.id = cl.contact_id
