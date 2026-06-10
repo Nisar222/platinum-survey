@@ -454,7 +454,8 @@ class BatchCallProcessor {
         const retryResult = calculateNextRetry(
           disposition.retryType,
           new Date(),
-          callData.callbackSchedule
+          callData.callbackSchedule,
+          null
         );
         nextRetryAt = retryResult?.requiresEscalation ? null : retryResult;
         console.log(`🔄 Next retry scheduled for: ${nextRetryAt}`);

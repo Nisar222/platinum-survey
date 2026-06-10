@@ -6,9 +6,7 @@
 
 import cron from 'node-cron';
 import { getDatabase } from '../db/database.js';
-import { utcToZonedTime } from 'date-fns-tz';
-
-const DAY_NAMES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+import { isInWindow } from './business-hours.js';
 
 class CampaignScheduler {
   constructor(campaignProcessor) {
@@ -46,7 +44,7 @@ class CampaignScheduler {
       ).all();
 
       for (const schedule of schedules) {
-        if (!this.isInWindow(schedule)) continue;
+        if (!isInWindow(schedule)) continue;
 
         // Find pending campaigns linked to this schedule
         const pendingCampaigns = db.prepare(`
@@ -69,28 +67,6 @@ class CampaignScheduler {
     } catch (error) {
       console.error('❌ Error in campaign scheduler:', error);
     }
-  }
-
-  /**
-   * Check if the current time falls within a schedule's window
-   * @param {Object} schedule - Schedule row from DB
-   * @returns {boolean}
-   */
-  isInWindow(schedule) {
-    const now = new Date();
-    const timezone = schedule.timezone || 'Asia/Dubai';
-    const zonedNow = utcToZonedTime(now, timezone);
-
-    // Check day of week
-    const currentDay = DAY_NAMES[zonedNow.getDay()];
-    const scheduledDays = JSON.parse(schedule.days);
-    if (!scheduledDays.includes(currentDay)) return false;
-
-    // Check time window (HH:MM format)
-    const currentTime = `${String(zonedNow.getHours()).padStart(2, '0')}:${String(zonedNow.getMinutes()).padStart(2, '0')}`;
-    if (currentTime < schedule.start_time || currentTime >= schedule.end_time) return false;
-
-    return true;
   }
 
   /**

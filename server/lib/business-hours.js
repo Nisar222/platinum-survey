@@ -14,6 +14,8 @@ import {
   parseISO
 } from 'date-fns';
 import { zonedTimeToUtc, utcToZonedTime, format as formatTz } from 'date-fns-tz';
+
+const DAY_NAMES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -135,11 +137,82 @@ export function isHoliday(date) {
 }
 
 /**
- * Get the next available business hour from a given datetime
- * @param {Date|string} datetime - Starting datetime
- * @returns {Date} Next available business hour
+ * Check if the current time falls within a schedule's day/time window.
+ * Shared by CampaignScheduler and RetryScheduler.
+ * @param {Object} schedule - Schedule row from DB (days, start_time, end_time, timezone)
+ * @returns {boolean}
  */
-export function getNextBusinessHour(datetime) {
+export function isInWindow(schedule) {
+  const now = new Date();
+  const timezone = schedule.timezone || 'Asia/Dubai';
+  const zonedNow = utcToZonedTime(now, timezone);
+  const currentDay = DAY_NAMES[zonedNow.getDay()];
+  const scheduledDays = JSON.parse(schedule.days);
+  if (!scheduledDays.includes(currentDay)) return false;
+  const currentTime = `${String(zonedNow.getHours()).padStart(2, '0')}:${String(zonedNow.getMinutes()).padStart(2, '0')}`;
+  if (currentTime < schedule.start_time || currentTime >= schedule.end_time) return false;
+  return true;
+}
+
+/**
+ * Given a schedule object, return its day numbers array (0=Sun … 6=Sat) and
+ * start/end hours as integers so getNextScheduleHour can use them.
+ */
+function parseSchedule(schedule) {
+  const days = JSON.parse(schedule.days).map(d => DAY_NAMES.indexOf(d)).filter(n => n >= 0);
+  const [startH, startM] = schedule.start_time.split(':').map(Number);
+  const [endH, endM] = schedule.end_time.split(':').map(Number);
+  const timezone = schedule.timezone || 'Asia/Dubai';
+  return { days, startH, startM, endH, endM, timezone };
+}
+
+/**
+ * Snap a datetime to the next opening of a specific campaign schedule window.
+ * Equivalent to getNextBusinessHour() but uses schedule-specific days/times.
+ * @param {Date} datetime
+ * @param {Object} schedule - Schedule row from DB
+ * @returns {Date} UTC datetime at the next schedule window opening
+ */
+function getNextScheduleHour(datetime, schedule) {
+  const { days, startH, startM, endH, endM, timezone } = parseSchedule(schedule);
+  let zonedDate = utcToZonedTime(new Date(datetime), timezone);
+
+  for (let i = 0; i < 14; i++) {
+    const dayNum = zonedDate.getDay();
+    if (days.includes(dayNum)) {
+      const h = zonedDate.getHours();
+      const m = zonedDate.getMinutes();
+      const afterStart = h > startH || (h === startH && m >= startM);
+      const beforeEnd  = h < endH   || (h === endH   && m < endM);
+      if (afterStart && beforeEnd) {
+        return zonedTimeToUtc(zonedDate, timezone);
+      }
+      // Before window opens today — snap to start
+      if (!afterStart) {
+        zonedDate = setHours(setMinutes(setSeconds(setMilliseconds(zonedDate, 0), 0), startM), startH);
+        return zonedTimeToUtc(zonedDate, timezone);
+      }
+    }
+    // Move to next day at schedule start time
+    zonedDate = addDays(setHours(setMinutes(setSeconds(setMilliseconds(zonedDate, 0), 0), startM), startH), 1);
+  }
+  // Fallback: return original (should never reach here)
+  return zonedTimeToUtc(zonedDate, timezone);
+}
+
+/**
+ * Get the next available business hour from a given datetime.
+ * If a campaign schedule is provided, uses that schedule's days/times.
+ * Otherwise falls back to global business hours from settings.
+ * @param {Date|string} datetime - Starting datetime
+ * @param {Object|null} schedule - Optional campaign schedule row from DB
+ * @returns {Date} Next available datetime within the schedule/business window
+ */
+export function getNextBusinessHour(datetime, schedule = null) {
+  if (schedule) {
+    return getNextScheduleHour(datetime, schedule);
+  }
+
   const tz = getTimezone();
   let date = typeof datetime === 'string' ? parseISO(datetime) : new Date(datetime);
   let zonedDate = utcToZonedTime(date, tz);
@@ -185,59 +258,72 @@ export function getNextBusinessHour(datetime) {
  * @param {Date|string|null} customerRequestedTime - Customer's requested callback time (optional)
  * @returns {Date} Next retry datetime
  */
-export function calculateNextRetry(outcome, currentTime = new Date(), customerRequestedTime = null) {
+export function calculateNextRetry(outcome, currentTime = new Date(), customerRequestedTime = null, schedule = null) {
   let nextRetry;
 
   switch (outcome) {
     case 'no_answer':
-      // Retry after configured number of days
       nextRetry = addDays(new Date(currentTime), getNoAnswerRetryDays());
-      nextRetry = getNextBusinessHour(nextRetry);
+      nextRetry = getNextBusinessHour(nextRetry, schedule);
       break;
 
     case 'callback_requested':
       if (customerRequestedTime) {
-        // Honor customer's requested time
         nextRetry = typeof customerRequestedTime === 'string'
           ? parseISO(customerRequestedTime)
           : new Date(customerRequestedTime);
 
         const isValidDate = !isNaN(nextRetry.getTime());
         const now = new Date(currentTime);
-        const maxAllowed = addDays(now, 3);
         const isPast = isValidDate && nextRetry <= now;
-        const isTooFar = isValidDate && nextRetry > maxAllowed;
 
         if (!isValidDate) {
           console.log(`⚠️  Callback time "${customerRequestedTime}" is not a valid ISO date — escalating`);
           return { nextRetry: null, requiresEscalation: true };
-        } else if (isPast) {
+        }
+        if (isPast) {
           console.log(`⚠️  Callback time ${nextRetry.toISOString()} is in the past — escalating`);
-          return { nextRetry: null, requiresEscalation: true };
-        } else if (isTooFar) {
-          console.log(`⚠️  Callback time ${nextRetry.toISOString()} is more than 3 days away — escalating`);
           return { nextRetry: null, requiresEscalation: true };
         }
 
-        // Adjust to business hours if outside
-        nextRetry = getNextBusinessHour(nextRetry);
+        if (schedule) {
+          // Validate callback falls on a scheduled day within the schedule window
+          const { days, startH, startM, endH, endM, timezone } = parseSchedule(schedule);
+          const zonedRequested = utcToZonedTime(nextRetry, timezone);
+          const dayNum = zonedRequested.getDay();
+          const h = zonedRequested.getHours();
+          const m = zonedRequested.getMinutes();
+          const onScheduledDay = days.includes(dayNum);
+          const withinWindow = (h > startH || (h === startH && m >= startM)) &&
+                               (h < endH   || (h === endH   && m < endM));
+          if (!onScheduledDay || !withinWindow) {
+            console.log(`⚠️  Callback time ${nextRetry.toISOString()} is outside campaign schedule — escalating`);
+            return { nextRetry: null, requiresEscalation: true };
+          }
+        } else {
+          // No schedule — keep flat 3-day fallback
+          const maxAllowed = addDays(now, 3);
+          if (nextRetry > maxAllowed) {
+            console.log(`⚠️  Callback time ${nextRetry.toISOString()} is more than 3 days away — escalating`);
+            return { nextRetry: null, requiresEscalation: true };
+          }
+        }
+
+        nextRetry = getNextBusinessHour(nextRetry, schedule);
       } else {
-        // Default to configured callback retry hours
         nextRetry = addHours(new Date(currentTime), getCallbackRetryHours());
-        nextRetry = getNextBusinessHour(nextRetry);
+        nextRetry = getNextBusinessHour(nextRetry, schedule);
       }
       break;
 
     case 'failed':
-      // Retry after configured callback retry hours
       nextRetry = addHours(new Date(currentTime), getCallbackRetryHours());
-      nextRetry = getNextBusinessHour(nextRetry);
+      nextRetry = getNextBusinessHour(nextRetry, schedule);
       break;
 
     default:
-      // Default: next business day
       nextRetry = addDays(new Date(currentTime), getNoAnswerRetryDays());
-      nextRetry = getNextBusinessHour(nextRetry);
+      nextRetry = getNextBusinessHour(nextRetry, schedule);
   }
 
   return nextRetry;
@@ -265,6 +351,7 @@ export function isCurrentlyBusinessHours() {
 export default {
   isBusinessHours,
   isHoliday,
+  isInWindow,
   getNextBusinessHour,
   calculateNextRetry,
   getRandomDelay,

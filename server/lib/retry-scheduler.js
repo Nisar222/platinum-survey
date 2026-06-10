@@ -6,7 +6,7 @@
 
 import cron from 'node-cron';
 import { getDatabase } from '../db/database.js';
-import { isCurrentlyBusinessHours } from './business-hours.js';
+import { isCurrentlyBusinessHours, isInWindow } from './business-hours.js';
 
 class RetryScheduler {
   constructor(campaignProcessor) {
@@ -55,7 +55,7 @@ class RetryScheduler {
 
       // Find campaigns that have contacts with due retries but are not running
       const campaignsWithDueRetries = db.prepare(`
-        SELECT DISTINCT c.id, c.name, c.status
+        SELECT DISTINCT c.id, c.name, c.status, c.schedule_id
         FROM campaigns c
         JOIN contacts co ON c.id = co.campaign_id
         WHERE co.status IN ('no_answer', 'callback_requested')
@@ -77,6 +77,15 @@ class RetryScheduler {
           if (this.campaignProcessor.activeCampaigns.has(campaign.id)) {
             console.log(`⏭️  Campaign ${campaign.id} already active, skipping`);
             continue;
+          }
+
+          // If campaign is linked to a schedule, only resume within that schedule's window
+          if (campaign.schedule_id) {
+            const schedule = db.prepare('SELECT * FROM schedules WHERE id = ?').get(campaign.schedule_id);
+            if (schedule && !isInWindow(schedule)) {
+              console.log(`⏸  Campaign ${campaign.id} (${campaign.name}) has due retries but outside schedule window — will retry at next tick`);
+              continue;
+            }
           }
 
           // Count how many contacts are due

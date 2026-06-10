@@ -506,6 +506,15 @@ class CampaignProcessor {
 
       const campaignId = contact.campaign_id || contact.batch_id;
 
+      // Fetch campaign's linked schedule so retry times respect schedule days/times
+      const campaignRow = db.prepare(`
+        SELECT c.schedule_id, s.days, s.start_time, s.end_time, s.timezone
+        FROM campaigns c
+        LEFT JOIN schedules s ON c.schedule_id = s.id
+        WHERE c.id = ?
+      `).get(campaignId);
+      const campaignSchedule = campaignRow?.schedule_id ? campaignRow : null;
+
       console.log(`📊 Processing call completion for contact ${contactId}`);
 
       if (this.pollingIntervals.has(contactId)) {
@@ -538,7 +547,8 @@ class CampaignProcessor {
         const retryResult = calculateNextRetry(
           disposition.retryType,
           retryBaseTime,
-          callData.callbackSchedule || null
+          callData.callbackSchedule || null,
+          campaignSchedule
         );
         // calculateNextRetry returns { nextRetry, requiresEscalation } for bad callback schedules,
         // or a plain Date for normal cases.
