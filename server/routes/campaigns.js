@@ -628,7 +628,7 @@ router.get('/:id/report/export', (req, res) => {
         r.callback_requested ? 'Yes' : 'No',
         r.escalation_required ? 'Yes' : 'No',
         r.ended_reason || '',
-        r.created_at || ''
+        toLocalTimestamp(r.created_at) || ''
       ].join(','));
     });
 
