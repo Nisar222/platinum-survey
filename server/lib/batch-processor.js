@@ -501,7 +501,7 @@ class BatchCallProcessor {
         contact.attempt_count,
         disposition.status,
         disposition.disposition,
-        callData.duration || 0,
+        callDuration || callData.duration || 0,
         callData.callback ? 1 : 0,
         callData.callbackSchedule || null,
         callData.rating || null,
